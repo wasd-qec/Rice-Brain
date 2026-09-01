@@ -91,4 +91,55 @@ Where to put images:
 After adding new images, simply run:
    python train.py
 The AI will immediately learn from your new photos!
+
+
+9. INSTALL / REINSTALL PYTORCH WITH GPU ACCELERATION (CUDA 13 FOR RTX 5060)
+--------------------------------------------------------------------------------
+Command:
+   python -m pip install --upgrade --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu130
+
+Why this specific version:
+   - Installs PyTorch compiled with CUDA 13.0 (cu130).
+   - Contains the native 'sm_120' kernels required by your NVIDIA GeForce
+     RTX 5060 Laptop GPU (Blackwell architecture).
+
+
+10. UNDERSTANDING DIFFERENT GPU VERSIONS & CUDA COMPATIBILITY
+--------------------------------------------------------------------------------
+Why different GPUs need different PyTorch/CUDA builds:
+   - Each generation of NVIDIA GPUs has a physically redesigned microchip
+     architecture and its own internal hardware dialect called its
+     Compute Capability (CC / sm_XX).
+   - PyTorch packages contain pre-compiled math recipes (kernels) built for
+     specific architectures.
+
+NVIDIA Architecture Reference:
+   GPU Generation       | Architecture  | Compute Cap. | Required PyTorch Index
+   ---------------------+---------------+--------------+------------------------
+   RTX 50-Series (Yours)| Blackwell     | sm_120       | cu130 (CUDA 13.0+)
+     (RTX 5060, 5070, 5080, 5090)
+   RTX 40-Series        | Ada Lovelace  | sm_89        | cu124 or cu121
+     (RTX 4060, 4070, 4080, 4090)
+   RTX 30-Series        | Ampere        | sm_86        | cu124 or cu118
+     (RTX 3060, 3070, 3080, 3090)
+   RTX 20-Series / 16xx | Turing        | sm_75        | cu124 or cu118
+     (RTX 2060, 2070, 2080, GTX 1660)
+   Non-NVIDIA (AMD/Intel/Mac)           | N/A          | cpu (CPU-only build)
+
+The Golden Rule of CUDA Compatibility:
+   * Backward Compatible = YES:
+     A newer CUDA build (like CUDA 13.0) can usually run on older GPUs
+     (like RTX 3060 or 4060) because it still includes their recipes.
+   * Forward Compatible = NO (The error you encountered):
+     An older CUDA build (like CUDA 12.6) was compiled BEFORE the RTX 50-series
+     existed. It has no recipes for 'sm_120', causing:
+     "CUDA error: no kernel image is available for execution on the device".
+
+Key GPU Hardware Terms in AI:
+   * Tensor Cores: Dedicated silicon blocks on the GPU built specifically
+     for matrix math. They process entire grids of numbers in a single clock
+     cycle instead of calculating pixels one by one like a CPU.
+   * VRAM (Video RAM, e.g. 8 GB on RTX 5060): The GPU's high-speed memory desk.
+     Determines how many images and how large a neural network can be loaded
+     at the same time without running out of memory.
 ================================================================================
