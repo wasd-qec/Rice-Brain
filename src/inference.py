@@ -5,6 +5,7 @@ src/inference.py - Inference Engine and API for 4-Class Rice Field State Classif
 import os
 import sys
 import argparse
+from urllib.parse import quote
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import torch
@@ -13,6 +14,39 @@ import torch.nn.functional as F
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.model import build_classifier, CLASSES, CLASS_COLORS
+
+
+def _clickable_file_label(path):
+    """Return a clickable file label for terminal environments that support OSC 8 links."""
+    if not path:
+        return ""
+
+    abs_path = os.path.abspath(path)
+    encoded_path = quote(abs_path)
+    file_uri = f"file://{encoded_path}"
+    label = os.path.basename(path)
+    return f"\033]8;;{file_uri}\a{label}\033]8;;\a"
+
+
+def confirm_others_classification(image_paths, prompt_message=None):
+    """Print the review-warning block for images classified as 'Others'."""
+    if isinstance(image_paths, str):
+        image_paths = [image_paths]
+
+    image_paths = [path for path in image_paths if path]
+    if not image_paths:
+        return True
+
+    print(f"\033[31m[WARNING WARNING!!!]\033[0m {len(image_paths)} image(s) are classified as OTHERS operator need to confirm the classification status :")
+    for idx, path in enumerate(image_paths, start=1):
+        print(f"{idx}, {_clickable_file_label(path)}")
+
+    if prompt_message is None:
+        return True
+
+    print(prompt_message, end="")
+    response = input().strip().lower()
+    return response in ("", "y", "yes")
 
 
 class RiceFieldPredictor:
@@ -76,13 +110,16 @@ class RiceFieldPredictor:
         confidence = float(probs[class_idx])
         
         prob_dict = {CLASSES[i]: float(probs[i]) for i in range(len(CLASSES))}
-        
-        return {
+        result = {
             "status": status_name,
             "class_id": class_idx,
             "confidence": confidence,
-            "probabilities": prob_dict
+            "probabilities": prob_dict,
+            "requires_human_confirmation": status_name == "Others",
+            "operator_confirmation_required": status_name == "Others",
         }
+
+        return result
 
     def predict_coordinate(self, full_image_path, coordinate, crop_size=180, output_annotated_path=None):
         """

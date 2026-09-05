@@ -4,7 +4,7 @@ inference.py - Root inference script for predicting the 4 rice field states (Dry
 
 import sys
 import argparse
-from src.inference import RiceFieldPredictor, predict_field_state
+from src.inference import RiceFieldPredictor, confirm_others_classification, predict_field_state
 from src.model import CLASSES
 
 if __name__ == "__main__":
@@ -24,7 +24,13 @@ if __name__ == "__main__":
     else:
         print(f"[*] Analyzing image '{args.image}'...")
         res = predictor.predict(args.image)
-        
+
+    if res.get("status") == "Others" or res.get("requires_human_confirmation"):
+        confirm_others_classification([args.image])
+        response = input("Are you sure that the classification status is correct?[Y/n]").strip().lower()
+        if response not in ("", "y", "yes"):
+            print("[!] Operator rejected the classification. Please review the image manually and re-run the prediction.")
+
     print("\n" + "="*50)
     print(f"[+] Predicted State:   {res['status']}")
     print(f"[+] Confidence:        {res['confidence']*100:.2f}%")

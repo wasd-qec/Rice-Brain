@@ -4,12 +4,13 @@ test_pipeline.py - Automated verification and test suite for the 4-Class Rice Fi
 
 import os
 import unittest
+
 import numpy as np
 import torch
 from PIL import Image
 
 from src.model import build_classifier, CLASSES
-from src.inference import RiceFieldPredictor, predict_field_state
+from src.inference import RiceFieldPredictor, predict_field_state, confirm_others_classification
 
 
 class TestRiceFieldClassifier(unittest.TestCase):
@@ -17,6 +18,12 @@ class TestRiceFieldClassifier(unittest.TestCase):
     def setUpClass(cls):
         cls.model_path = "rice_field_classifier.pth"
         cls.predictor = RiceFieldPredictor(model_path=cls.model_path)
+        cls.review_files = []
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.review_files:
+            confirm_others_classification(cls.review_files)
 
     def test_01_model_forward_shape(self):
         model = build_classifier(num_classes=len(CLASSES))
@@ -54,6 +61,7 @@ class TestRiceFieldClassifier(unittest.TestCase):
         if os.path.exists(others_path):
             res = self.predictor.predict(others_path)
             self.assertEqual(res["status"], "Others")
+            self.__class__.review_files.append(others_path)
             print(f"[PASS] Test 5: Others image '{others_path}' -> {res['status']} ({res['confidence']*100:.1f}%)")
 
     def test_06_coordinate_prediction(self):
@@ -63,6 +71,7 @@ class TestRiceFieldClassifier(unittest.TestCase):
             self.assertIn("status", res)
             self.assertIn(res["status"], CLASSES)
             print(f"[PASS] Test 6: Coordinate crop at (200, 200) -> {res['status']} ({res['confidence']*100:.1f}%)")
+
 
 
 if __name__ == "__main__":
