@@ -5,8 +5,10 @@ src/inference.py - Inference Engine and API for 4-Class Rice Field State Classif
 import os
 import sys
 import argparse
+import json
+import csv
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 import torch
 import torch.nn.functional as F
 
@@ -84,85 +86,80 @@ class RiceFieldPredictor:
             "probabilities": prob_dict
         }
 
-    def predict_coordinate(self, full_image_path, coordinate, crop_size=180, output_annotated_path=None):
+    def predict_directory(self, input_dir="Input", recursive=True, save_csv=None, save_json=None):
         """
-        Given a full satellite image and an (x, y) coordinate, crops the field
-        centered at (x, y) and classifies its status among ['Dry', 'Flooded', 'Planted', 'Others'].
+        Recursively scans input_dir (and all nested subdirectories) for any picture file,
+        classifies each into ['Dry', 'Flooded', 'Planted', 'Others'], and aggregates results.
         """
-        if isinstance(full_image_path, str):
-            full_img = Image.open(full_image_path).convert("RGB")
+        if not os.path.exists(input_dir):
+            raise FileNotFoundError(f"Input directory not found: '{input_dir}'")
+            
+        valid_extensions = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
+        image_files = []
+        
+        if recursive:
+            for root, _, files in os.walk(input_dir):
+                for f in sorted(files):
+                    ext = os.path.splitext(f)[1].lower()
+                    if ext in valid_extensions:
+                        full_p = os.path.join(root, f)
+                        rel_p = os.path.relpath(full_p, input_dir)
+                        image_files.append((full_p, rel_p, f))
         else:
-            full_img = full_image_path.convert("RGB")
+            for f in sorted(os.listdir(input_dir)):
+                full_p = os.path.join(input_dir, f)
+                if os.path.isfile(full_p):
+                    ext = os.path.splitext(f)[1].lower()
+                    if ext in valid_extensions:
+                        image_files.append((full_p, f, f))
+                        
+        results = []
+        summary_counts = {c: 0 for c in CLASSES}
+        
+        for full_p, rel_p, fname in image_files:
+            try:
+                pred = self.predict(full_p)
+                item = {
+                    "filename": fname,
+                    "relative_path": rel_p.replace("\\", "/"),
+                    "full_path": os.path.abspath(full_p),
+                    "status": pred["status"],
+                    "confidence": pred["confidence"],
+                    "probabilities": pred["probabilities"]
+                }
+                results.append(item)
+                summary_counts[pred["status"]] += 1
+            except Exception as e:
+                print(f"[!] Warning: Failed to classify '{full_p}': {e}")
+                
+        output = {
+            "total_images": len(results),
+            "directory": os.path.abspath(input_dir),
+            "summary_counts": summary_counts,
+            "results": results
+        }
+        
+        if save_json:
+            with open(save_json, "w", encoding="utf-8") as jf:
+                json.dump(output, jf, indent=2)
+            print(f"[+] Saved directory classification JSON to: {save_json}")
             
-        w, h = full_img.size
-        cx, cy = int(coordinate[0]), int(coordinate[1])
-        
-        # Clamp center coordinate to image bounds
-        cx = max(0, min(w - 1, cx))
-        cy = max(0, min(h - 1, cy))
-        
-        half = min(crop_size, min(w, h)) // 2
-        left = max(0, min(w - 2 * half, cx - half))
-        top = max(0, min(h - 2 * half, cy - half))
-        right = min(w, left + 2 * half)
-        bottom = min(h, top + 2 * half)
-        
-        if right <= left:
-            left, right = 0, w
-        if bottom <= top:
-            top, bottom = 0, h
+        if save_csv:
+            with open(save_csv, "w", newline="", encoding="utf-8") as cf:
+                writer = csv.writer(cf)
+                header = ["filename", "relative_path", "predicted_status", "confidence"] + [f"prob_{c}" for c in CLASSES]
+                writer.writerow(header)
+                for item in results:
+                    row = [
+                        item["filename"],
+                        item["relative_path"],
+                        item["status"],
+                        f"{item['confidence']*100:.2f}%"
+                    ] + [f"{item['probabilities'].get(c, 0.0)*100:.2f}%" for c in CLASSES]
+                    writer.writerow(row)
+            print(f"[+] Saved directory classification CSV to: {save_csv}")
             
-        crop = full_img.crop((left, top, right, bottom))
-        result = self.predict(crop)
-        
-        result["coordinate"] = (cx, cy)
-        result["bounding_box"] = [left, top, right, bottom]
-        
-        if output_annotated_path is not None:
-            annotated = self._draw_coordinate_annotation(full_img, result)
-            annotated.save(output_annotated_path)
-            result["annotated_image_path"] = output_annotated_path
-            
-        return result
-
-    def _draw_coordinate_annotation(self, pil_img, result):
-        """Draws visual HUD overlay on the satellite image."""
-        overlay = pil_img.copy().convert("RGBA")
-        draw = ImageDraw.Draw(overlay)
-        
-        cx, cy = result["coordinate"]
-        bbox = result["bounding_box"]
-        status = result["status"]
-        color = CLASS_COLORS.get(status, (120, 80, 70))
-        
-        draw.rectangle(bbox, outline=(*color, 255), width=3)
-        
-        fill_layer = Image.new("RGBA", pil_img.size, (0, 0, 0, 0))
-        fill_draw = ImageDraw.Draw(fill_layer)
-        fill_draw.rectangle(bbox, fill=(*color, 75))
-        overlay = Image.alpha_composite(overlay, fill_layer)
-        
-        draw_final = ImageDraw.Draw(overlay)
-        r = 6
-        draw_final.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(255, 30, 30, 255), outline=(255, 255, 255, 255), width=2)
-        
-        card_w, card_h = 360, 140
-        margin = 15
-        card_x = margin if cx > pil_img.width // 2 else pil_img.width - card_w - margin
-        card_y = margin
-        
-        draw_final.rectangle([card_x, card_y, card_x + card_w, card_y + card_h], fill=(20, 25, 35, 230), outline=(*color, 255), width=2)
-        draw_final.rectangle([card_x + 10, card_y + 12, card_x + 20, card_y + card_h - 12], fill=(*color, 255))
-        
-        tx = card_x + 30
-        draw_final.text((tx, card_y + 12), f"Status: {status.upper()}", fill=(255, 255, 255, 255))
-        draw_final.text((tx, card_y + 36), f"Confidence: {result['confidence']*100:.1f}%", fill=(180, 230, 255, 255))
-        draw_final.text((tx, card_y + 60), f"Coordinate: ({cx}, {cy})", fill=(200, 200, 200, 255))
-        
-        prob_str = " | ".join([f"{k[:3]}:{v*100:.0f}%" for k, v in result["probabilities"].items()])
-        draw_final.text((tx, card_y + 88), f"Probs: {prob_str}", fill=(180, 220, 180, 255))
-        
-        return overlay.convert("RGB")
+        return output
 
 
 def predict_field_state(image_path, model_path="rice_field_classifier.pth"):
@@ -170,28 +167,46 @@ def predict_field_state(image_path, model_path="rice_field_classifier.pth"):
     return predictor.predict(image_path)
 
 
+def predict_input_directory(input_dir="Input", model_path="rice_field_classifier.pth", **kwargs):
+    predictor = RiceFieldPredictor(model_path=model_path)
+    return predictor.predict_directory(input_dir=input_dir, **kwargs)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Predict Rice Field State (Dry, Flooded, Planted, Others).")
-    parser.add_argument("--image", type=str, required=True, help="Path to input image")
+    parser.add_argument("--image", type=str, default=None, help="Path to single input image")
+    parser.add_argument("--dir", "--input_dir", dest="input_dir", type=str, default=None, help="Directory to scan recursively (default: Input/)")
     parser.add_argument("--model", type=str, default="rice_field_classifier.pth", help="Model checkpoint path")
-    parser.add_argument("--x", type=int, default=None, help="Optional X coordinate on full map")
-    parser.add_argument("--y", type=int, default=None, help="Optional Y coordinate on full map")
-    parser.add_argument("--output", type=str, default="prediction_result.png", help="Output annotated image path")
+    parser.add_argument("--csv", type=str, default=None, help="Optional CSV output path for batch results")
+    parser.add_argument("--json", type=str, default=None, help="Optional JSON output path for batch results")
     
     args = parser.parse_args()
     predictor = RiceFieldPredictor(model_path=args.model)
     
-    if args.x is not None and args.y is not None:
-        print(f"[*] Analyzing field at coordinate ({args.x}, {args.y}) in '{args.image}'...")
-        res = predictor.predict_coordinate(args.image, (args.x, args.y), output_annotated_path=args.output)
-    else:
-        print(f"[*] Analyzing image '{args.image}'...")
+    if args.image:
+        print(f"[*] Analyzing single image '{args.image}'...")
         res = predictor.predict(args.image)
+        print("\n" + "="*50)
+        print(f"[+] Predicted State:   {res['status']}")
+        print(f"[+] Confidence:        {res['confidence']*100:.2f}%")
+        print(f"[+] 4-Class Probabilities:")
+        for cname, prob in res['probabilities'].items():
+            print(f"    - {cname:10s}: {prob*100:5.1f}%")
+        print("="*50 + "\n")
+    else:
+        target_dir = args.input_dir if args.input_dir else "Input"
+        print(f"[*] Scanning & classifying all images in '{target_dir}' (including all subdirectories)...")
+        batch_res = predictor.predict_directory(input_dir=target_dir, save_csv=args.csv, save_json=args.json)
         
-    print("\n" + "="*50)
-    print(f"[+] Predicted State:   {res['status']}")
-    print(f"[+] Confidence:        {res['confidence']*100:.2f}%")
-    print(f"[+] 4-Class Probabilities:")
-    for cname, prob in res['probabilities'].items():
-        print(f"    - {cname:10s}: {prob*100:5.1f}%")
-    print("="*50 + "\n")
+        print("\n" + "="*75)
+        print(f"{'RELATIVE PATH':<45} | {'STATUS':<10} | {'CONFIDENCE':<10}")
+        print("="*75)
+        for item in batch_res["results"]:
+            rel = item["relative_path"]
+            if len(rel) > 43:
+                rel = "..." + rel[-40:]
+            print(f"{rel:<45} | {item['status']:<10} | {item['confidence']*100:6.1f}%")
+        print("="*75)
+        print(f"Total Images Classified: {batch_res['total_images']}")
+        print("Summary Breakdown:", ", ".join([f"{k}: {v}" for k, v in batch_res["summary_counts"].items()]))
+        print("="*75 + "\n")

@@ -41,26 +41,20 @@ Outputs:
 ### 2. Python Inference API
 
 ```python
-from inference import predict_field_state
+from inference import predict_field_state, predict_input_directory
+from src.inference import RiceFieldPredictor
 
-result = predict_field_state("Dataset/Planted/1.png")
-
+# Single image classification:
+result = predict_field_state("Dataset/Planted/planted_01.png")
 print("Status:", result["status"])         # 'Dry', 'Flooded', 'Planted', or 'Others'
 print("Confidence:", f"{result['confidence'] * 100:.1f}%")
 print("Probabilities:", result["probabilities"])
-```
 
-Or query a specific coordinate on a satellite map:
-```python
-from src.inference import RiceFieldPredictor
-
+# Batch classify all images in Input/ (including subdirectories):
 predictor = RiceFieldPredictor()
-res = predictor.predict_coordinate(
-    full_image_path="Dataset/Planted/1.png",
-    coordinate=(500, 400),
-    output_annotated_path="output_annotated.png"
-)
-print("State at (500, 400):", res["status"])
+batch = predictor.predict_directory("Input", recursive=True, save_csv="results.csv")
+print("Total Classified:", batch["total_images"])
+print("Summary:", batch["summary_counts"])
 ```
 
 ---
@@ -68,11 +62,17 @@ print("State at (500, 400):", res["status"])
 ### 3. Command Line Interface (CLI)
 
 ```bash
-# Classify an image/crop:
-python inference.py --image Dataset/Flood/1.png
+# 1. Batch classify ALL pictures inside Input/ (and all subdirectories):
+python inference.py
 
-# Query a specific (x, y) coordinate on a map:
-python inference.py --image Dataset/Planted/1.png --x 500 --y 400 --output result.png
+# 2. Classify pictures in a custom folder (recursively):
+python inference.py --dir Input/my_subfolder
+
+# 3. Classify and export results to CSV and JSON:
+python inference.py --dir Input --csv results.csv --json results.json
+
+# 4. Classify a single image:
+python inference.py --image Dataset/Flood/flood_01.png
 ```
 
 ---
@@ -86,10 +86,11 @@ python gui_app.py
 ```
 
 **GUI Features:**
-- 🎯 **Point-and-Click**: Click anywhere on the satellite image to analyze the rice field at that exact location.
+- ⚡ **Classify 'Input/' Folder**: Recursively scans all images across `Input/` and all nested subdirectories with one click.
+- 📋 **Batch Results Viewer**: Interactive table showing relative paths, classifications, and confidence; double-click any row to view it.
 - ⚡ **Quick Sample Buttons**: Instantly switch between Dry, Flooded, Planted, and Others samples.
 - 📊 **Real-Time Probability Bars**: Live probability distribution across all 4 classes.
-- 💾 **Export Results**: Save annotated visual outputs.
+- 💾 **Export Results**: Save CSV/JSON reports or inspected images.
 
 ---
 

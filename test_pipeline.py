@@ -56,13 +56,36 @@ class TestRiceFieldClassifier(unittest.TestCase):
             self.assertEqual(res["status"], "Others")
             print(f"[PASS] Test 5: Others image '{others_path}' -> {res['status']} ({res['confidence']*100:.1f}%)")
 
-    def test_06_coordinate_prediction(self):
-        sample_path = "Dataset/Planted/planted_01.png"
-        if os.path.exists(sample_path):
-            res = self.predictor.predict_coordinate(sample_path, (200, 200), output_annotated_path="test_coord_output.png")
-            self.assertIn("status", res)
-            self.assertIn(res["status"], CLASSES)
-            print(f"[PASS] Test 6: Coordinate crop at (200, 200) -> {res['status']} ({res['confidence']*100:.1f}%)")
+    def test_06_recursive_input_classification(self):
+        # Create a nested subdirectory in Input/ to test recursive discovery
+        nested_dir = os.path.join("Input", "_test_temp_sub", "inner")
+        os.makedirs(nested_dir, exist_ok=True)
+        temp_img_path = os.path.join(nested_dir, "nested_sample.png")
+        
+        try:
+            # Create a simple test RGB image
+            test_img = Image.new("RGB", (224, 224), color=(34, 180, 76))
+            test_img.save(temp_img_path)
+            
+            res = self.predictor.predict_directory("Input", recursive=True)
+            self.assertGreater(res["total_images"], 0)
+            
+            # Verify that the nested file was found
+            found_nested = any("_test_temp_sub" in item["relative_path"] for item in res["results"])
+            self.assertTrue(found_nested, "Failed to discover nested image in Input subdirectory!")
+            
+            nested_item = next(item for item in res["results"] if "_test_temp_sub" in item["relative_path"])
+            self.assertIn(nested_item["status"], CLASSES)
+            self.assertGreater(nested_item["confidence"], 0.0)
+            print(f"[PASS] Test 6: Recursive Input discovery -> Found {res['total_images']} images (nested sample -> {nested_item['status']})")
+        finally:
+            # Clean up temporary test directory
+            if os.path.exists(temp_img_path):
+                os.remove(temp_img_path)
+            temp_parent = os.path.join("Input", "_test_temp_sub")
+            if os.path.exists(temp_parent):
+                import shutil
+                shutil.rmtree(temp_parent, ignore_errors=True)
 
 
 if __name__ == "__main__":

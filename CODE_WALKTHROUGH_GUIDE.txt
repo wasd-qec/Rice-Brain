@@ -1,0 +1,203 @@
+================================================================================
+🌾 RICE FIELD NEURAL NETWORK - STEP-BY-STEP CODE STUDY GUIDE
+================================================================================
+
+Welcome! This guide is designed to take you by the hand and walk you through 
+this codebase in the exact right order. 
+
+Machine learning projects look intimidating at first because files reference 
+each other. If you follow this reading roadmap, every piece will click into place.
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+1. The 30-Second Mental Map (What this repo does)
+2. Root vs. src/ (Why are there two files with the same name?)
+3. Step 1: The Blueprint (src/model.py)
+4. Step 2: The Data Loader (src/dataset.py)
+5. Step 3: The Teacher (train.py & src/train.py)
+6. Step 4: The Predictor (inference.py & src/inference.py)
+7. Step 5: The Desktop App & Tests (gui_app.py & test_pipeline.py)
+8. Quick "Which function does what?" Cheat Sheet
+
+================================================================================
+1. THE 30-SECOND MENTAL MAP
+================================================================================
+This project takes satellite/drone photos of farmland and determines whether 
+a rice parcel is:
+   1. Dry (harvested or bare soil)
+   2. Flooded (water prepared for planting)
+   3. Planted (green growing rice)
+   4. Others (roads, houses, forest, canals)
+
+The journey of any Deep Learning project follows 4 stages:
+   [Data in Dataset/] 
+         ⬇  (Loaded by src/dataset.py)
+   [Model Architecture in src/model.py]
+         ⬇  (Trained by src/train.py -> saved as rice_field_classifier.pth)
+   [Predictions in src/inference.py or gui_app.py]
+
+================================================================================
+2. ROOT FILES VS. SRC/ FILES (WHY TWO OF EACH?)
+================================================================================
+In the project root, you see:
+   - train.py
+   - inference.py
+
+And inside src/, you also see:
+   - src/train.py
+   - src/inference.py
+
+Why?
+   - The files in the ROOT (train.py, inference.py) are simple "Launchers" or 
+     "Runners". They just take command-line arguments and start the job.
+   - The files inside SRC/ (src/train.py, src/inference.py, src/model.py) 
+     contain the REAL logic, neural network math, and algorithms.
+
+================================================================================
+3. STEP 1: START HERE -> src/model.py (The Neural Network Brain)
+================================================================================
+Always start by looking at the model architecture. This defines how the AI 
+"thinks".
+
+Read in this order:
+--------------------------------------------------------------------------------
+A. Lines 10 - 21: The Categories
+   - CLASSES: The 4 labels ["Dry", "Flooded", "Planted", "Others"].
+   - CLASS_COLORS: Just RGB colors used to draw boxes and GUI indicators.
+
+B. Lines 24 - 48: class ResidualBlock(nn.Module)
+   - This is the fundamental building block.
+   - Look at line 26: def __init__(self, in_channels, out_channels, stride=1).
+   - Notice line 46: out += residual. 
+     This is a "Skip Connection" (ResNet trick). It allows raw signals to skip 
+     over convolutions, which stops the network from forgetting early features.
+
+C. Lines 50 - 105: class RiceFieldClassifier(nn.Module)
+   - This is the full neural network.
+   - Look at __init__ (lines 55-87):
+     * self.stem: Initial 7x7 convolution to shrink high-res image down.
+     * self.stage1 to stage4: Stacks of ResidualBlocks going deeper (from 64 
+       channels up to 512 channels).
+     * self.fc: Final linear layer that outputs 4 numbers (1 score per class).
+   - Look at forward() (lines 89-105):
+     * Traces the path of an image tensor x flowing through each stage.
+
+D. Lines 112 - 117: if __name__ == "__main__":
+   - A tiny self-test. It feeds fake random noise (torch.randn) through the 
+     model to confirm that it outputs shape [4, 4].
+
+================================================================================
+4. STEP 2 -> src/dataset.py (How Images are Fed to the AI)
+================================================================================
+Before training, the computer needs to load images from disk and format them into 
+numbers (tensors).
+
+Read in this order:
+--------------------------------------------------------------------------------
+A. Lines 15 - 59: class RiceFieldDataset.__init__()
+   - Look at lines 40-54: It scans the folders inside "Dataset/" (Dry, Flood, 
+     Planted, Others) and opens all image files using PIL (Python Imaging Library).
+
+B. Lines 60 - 95: __getitem__(self, idx)
+   - In PyTorch, __getitem__ is called every time the AI requests one photo.
+   - Look at lines 73-86: Random crops and rotations (Data Augmentation).
+     By randomly flipping and rotating photos during training, the AI learns that 
+     a rice field is still a rice field even upside-down or mirrored!
+   - Look at lines 88-92: Normalizes pixel values so the GPU math stays stable.
+
+C. Lines 100 - 137: create_dataloaders()
+   - Packs individual images into batches (e.g. 16 images at a time) so the 
+     RTX 5060 GPU can process them in parallel.
+
+================================================================================
+5. STEP 3 -> train.py & src/train.py (How the AI Learns)
+================================================================================
+Now you know what the brain looks like (model.py) and where the food comes from 
+(dataset.py). Now see how it learns!
+
+Read in this order:
+--------------------------------------------------------------------------------
+A. train.py (Root folder, only 15 lines):
+   - Look at line 8: It just calls train_classifier() with default settings 
+     (12 epochs, batch size 16).
+
+B. src/train.py -> def train_classifier():
+   - Lines 26 - 30: Detects your NVIDIA RTX 5060 GPU with torch.cuda.
+   - Lines 33 - 46: Prepares the ingredients:
+     * train_loader: Feeds image batches.
+     * model: Instantiates RiceFieldClassifier and moves it onto the GPU (.to(device)).
+     * criterion: CrossEntropyLoss (measures how wrong the model's guess is).
+     * optimizer: AdamW (adjusts the neural network weights to reduce errors).
+   - Lines 56 - 95: The Training Loop (for epoch in range(...)):
+     * Forward pass: outputs = model(images)
+     * Calculate error: loss = criterion(outputs, labels)
+     * Backward pass: loss.backward() (calculates calculus gradients)
+     * Optimization: optimizer.step() (nudges weights closer to correct answers)
+   - Lines 97 - 145: Validation & Saving:
+     * Tests the model on validation images it hasn't memorized.
+     * If accuracy is the highest so far, saves weights to 'rice_field_classifier.pth'.
+
+================================================================================
+6. STEP 4 -> inference.py & src/inference.py (Using the Trained AI)
+================================================================================
+Once 'rice_field_classifier.pth' exists, we use it to classify new images.
+
+Read in this order:
+--------------------------------------------------------------------------------
+A. inference.py (Root folder):
+   - Sets up command-line arguments (--image, --dir, --csv, --json).
+   - If no image is provided, automatically runs batch classification on Input/.
+
+B. src/inference.py -> class RiceFieldPredictor:
+   - Lines 23 - 42: __init__()
+     * Loads the saved weights file (rice_field_classifier.pth).
+     * Calls self.model.eval() to turn off training modes.
+   - Lines 44 - 54: _preprocess(pil_image)
+     * Resizes the image to 224x224 pixels and converts it into a PyTorch tensor.
+   - Lines 56 - 85: predict(image_input)
+     * Passes the tensor into the model: logits = self.model(tensor).
+     * Uses torch.softmax() to turn raw numbers into 0%-100% probabilities.
+     * Returns a dictionary with the winner class (status) and confidence.
+   - Lines 87 - 165: predict_directory(input_dir="Input", recursive=True)
+     * Recursively traverses any directory (defaults to Input/) and all subdirectories.
+     * Finds every image (.png, .jpg, .jpeg, .bmp, .webp, .tif).
+     * Classifies each image and returns summary counts, confidence, and full results.
+     * Optionally exports results directly to CSV or JSON.
+
+================================================================================
+7. STEP 5 -> gui_app.py (Interactive Visual Interface)
+================================================================================
+You don't need to read all of gui_app.py right away, but it's great to see how 
+everything connects visually:
+   - Lines 12 - 13: Imports CLASSES, CLASS_COLORS, and RiceFieldPredictor.
+   - Lines 16 - 34: RiceFieldGUI class initializes the window, state, and predictor.
+   - Lines 36 - 60: Top toolbar with "Open Image", "Classify 'Input/' Folder",
+     "Batch Custom Folder...", and Quick Samples.
+   - Lines 88 - 146: Right results sidebar with status badge and live probability bars.
+   - Lines 228 - 250: _on_batch_classify() triggers recursive directory classification.
+   - Lines 251 - 333: _show_batch_results_dialog() displays the interactive results table 
+     with double-click image previewing and CSV/JSON export.
+
+================================================================================
+8. CHEAT SHEET: "WHICH FUNCTION DOES WHAT?"
+================================================================================
+If you want to understand...         Look at this file and function:
+----------------------------------   -------------------------------------------
+How the 4 classes are defined        src/model.py       -> CLASSES (line 11)
+How residual blocks work             src/model.py       -> ResidualBlock (line 24)
+The complete CNN architecture        src/model.py       -> RiceFieldClassifier (line 50)
+How training images are cropped      src/dataset.py     -> __getitem__ (line 60)
+How GPU batches are formed           src/dataset.py     -> create_dataloaders (line 100)
+The training & backprop math         src/train.py       -> train_classifier (line 56)
+How an image is resized for AI       src/inference.py   -> _preprocess (line 44)
+How probabilities (0-100%) are calculated  src/inference.py -> predict (line 72)
+How recursive batch scan works       src/inference.py   -> predict_directory (line 87)
+Interactive batch GUI dialog         gui_app.py         -> _show_batch_results_dialog (line 251)
+Automated health tests               test_pipeline.py   -> TestRiceFieldClassifier (line 15)
+
+================================================================================
+RECOMMENDED FIRST ACTION:
+Open 'src/model.py' at line 10 and read through line 50.
+Whenever you hit a line of code you want explained in detail, ask away!
+================================================================================

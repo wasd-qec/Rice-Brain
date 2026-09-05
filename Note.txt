@@ -29,16 +29,19 @@ What it does:
      * Breakdown across all 4 classes
 
 
-3. QUERY A SPECIFIC COORDINATE ON A SATELLITE IMAGE
+3. BATCH CLASSIFY ALL IMAGES IN INPUT/ (INCLUDING ALL SUBDIRECTORIES)
 --------------------------------------------------------------------------------
 Command:
-   python inference.py --image Dataset/Planted/planted_01.png --x 200 --y 200
-   python inference.py --image Input/image.png --x 500 --y 400 --output result.png
+   python inference.py
+   python inference.py --dir Input
+   python inference.py --dir Input/my_subfolder --csv results.csv
 
 What it does:
-   - Centers a box around the (X, Y) pixel coordinate on the satellite map.
-   - Analyzes that specific field parcel.
-   - Saves an annotated image with a highlighted bounding box (if --output is set).
+   - Recursively scans the Input/ folder and any nested subdirectories.
+   - Finds any picture (.png, .jpg, .jpeg, .bmp, .webp, .tif).
+   - Classifies every image into Dry, Flooded, Planted, or Others.
+   - Prints a clean summary table with paths, labels, confidence, and totals.
+   - Optionally saves a full CSV or JSON report (with --csv / --json).
 
 
 4. LAUNCH THE INTERACTIVE DESKTOP GUI
@@ -47,9 +50,11 @@ Command:
    python gui_app.py
 
 What it does:
-   - Opens a visual point-and-click window.
-   - Lets you open any satellite image or pick quick samples.
-   - Click anywhere on the map to see the field state and live probability bars.
+   - Opens a visual desktop window.
+   - Lets you open any individual image or pick quick samples.
+   - Click "⚡ Classify 'Input/' Folder" to batch scan and classify all images
+     across Input/ and its subdirectories with interactive results.
+
 
 
 5. RUN THE AUTOMATED QUALITY HEALTH TEST
