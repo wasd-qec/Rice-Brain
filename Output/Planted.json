@@ -1,0 +1,153 @@
+{
+  "directory": "D:\\Farm\\NNetwork\\Dataset\\Planted",
+  "relative_directory": "Planted",
+  "total_images": 10,
+  "summary_counts": {
+    "Dry": 0,
+    "Flooded": 0,
+    "Planted": 10,
+    "Others": 0
+  },
+  "results": [
+    {
+      "filename": "planted_01.png",
+      "relative_path": "Planted/planted_01.png",
+      "relative_directory": "Planted",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Planted\\planted_01.png",
+      "status": "Planted",
+      "confidence": 0.9688763618469238,
+      "probabilities": {
+        "Dry": 0.00950586050748825,
+        "Flooded": 0.01609060727059841,
+        "Planted": 0.9688763618469238,
+        "Others": 0.005527286324650049
+      }
+    },
+    {
+      "filename": "planted_02.png",
+      "relative_path": "Planted/planted_02.png",
+      "relative_directory": "Planted",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Planted\\planted_02.png",
+      "status": "Planted",
+      "confidence": 0.9599618911743164,
+      "probabilities": {
+        "Dry": 0.01111939363181591,
+        "Flooded": 0.016579600051045418,
+        "Planted": 0.9599618911743164,
+        "Others": 0.012339086271822453
+      }
+    },
+    {
+      "filename": "planted_03.png",
+      "relative_path": "Planted/planted_03.png",
+      "relative_directory": "Planted",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Planted\\planted_03.png",
+      "status": "Planted",
+      "confidence": 0.9588327407836914,
+      "probabilities": {
+        "Dry": 0.017354246228933334,
+        "Flooded": 0.014381317421793938,
+        "Planted": 0.9588327407836914,
+        "Others": 0.009431728161871433
+      }
+    },
+    {
+      "filename": "planted_04.png",
+      "relative_path": "Planted/planted_04.png",
+      "relative_directory": "Planted",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Planted\\planted_04.png",
+      "status": "Planted",
+      "confidence": 0.9608145952224731,
+      "probabilities": {
+        "Dry": 0.017657924443483353,
+        "Flooded": 0.014808823354542255,
+        "Planted": 0.9608145952224731,
+        "Others": 0.006718741729855537
+      }
+    },
+    {
+      "filename": "planted_05.png",
+      "relative_path": "Planted/planted_05.png",
+      "relative_directory": "Planted",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Planted\\planted_05.png",
+      "status": "Planted",
+      "confidence": 0.9696033596992493,
+      "probabilities": {
+        "Dry": 0.013374241068959236,
+        "Flooded": 0.010789296589791775,
+        "Planted": 0.9696033596992493,
+        "Others": 0.006233099848031998
+      }
+    },
+    {
+      "filename": "planted_06.png",
+      "relative_path": "Planted/planted_06.png",
+      "relative_directory": "Planted",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Planted\\planted_06.png",
+      "status": "Planted",
+      "confidence": 0.9681061506271362,
+      "probabilities": {
+        "Dry": 0.013524619862437248,
+        "Flooded": 0.0113978898152709,
+        "Planted": 0.9681061506271362,
+        "Others": 0.006971374154090881
+      }
+    },
+    {
+      "filename": "planted_07.png",
+      "relative_path": "Planted/planted_07.png",
+      "relative_directory": "Planted",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Planted\\planted_07.png",
+      "status": "Planted",
+      "confidence": 0.9716929793357849,
+      "probabilities": {
+        "Dry": 0.01290933508425951,
+        "Flooded": 0.008997204713523388,
+        "Planted": 0.9716929793357849,
+        "Others": 0.006400470621883869
+      }
+    },
+    {
+      "filename": "planted_08.png",
+      "relative_path": "Planted/planted_08.png",
+      "relative_directory": "Planted",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Planted\\planted_08.png",
+      "status": "Planted",
+      "confidence": 0.9677404165267944,
+      "probabilities": {
+        "Dry": 0.014566070400178432,
+        "Flooded": 0.011077452450990677,
+        "Planted": 0.9677404165267944,
+        "Others": 0.006616156082600355
+      }
+    },
+    {
+      "filename": "planted_09.png",
+      "relative_path": "Planted/planted_09.png",
+      "relative_directory": "Planted",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Planted\\planted_09.png",
+      "status": "Planted",
+      "confidence": 0.9581887125968933,
+      "probabilities": {
+        "Dry": 0.016340209171175957,
+        "Flooded": 0.01834748312830925,
+        "Planted": 0.9581887125968933,
+        "Others": 0.007123513147234917
+      }
+    },
+    {
+      "filename": "planted_10.png",
+      "relative_path": "Planted/planted_10.png",
+      "relative_directory": "Planted",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Planted\\planted_10.png",
+      "status": "Planted",
+      "confidence": 0.9659072756767273,
+      "probabilities": {
+        "Dry": 0.01677057519555092,
+        "Flooded": 0.010469854809343815,
+        "Planted": 0.9659072756767273,
+        "Others": 0.006852368358522654
+      }
+    }
+  ]
+}

@@ -34,17 +34,21 @@ What it does:
 Command:
    python inference.py
    python inference.py --dir Input
-   python inference.py --dir Input/my_subfolder --csv results.csv
+   python inference.py --dir Input/my_subfolder --output_dir Output
 
 What it does:
    - Recursively scans the Input/ folder and any nested subdirectories.
    - Finds any picture (.png, .jpg, .jpeg, .bmp, .webp, .tif).
    - Classifies every image into Dry, Flooded, Planted, or Others.
    - Prints a clean summary table with paths, labels, confidence, and totals.
-   - Optionally saves a full CSV or JSON report (with --csv / --json).
+   - AUTOMATICALLY creates an 'Output/' folder with a .json report for each subdirectory:
+     * Output/root.json (for images in the root of Input/)
+     * Output/<subfolder>.json (one for each subdirectory with images)
+     * Output/all_results.json (overall aggregate)
+   - Optionally exports CSV report with --csv.
 
 
-4. LAUNCH THE INTERACTIVE DESKTOP GUI
+4. LAUNCH THE INTERACTIVE DESKTOP GUI (WITH OPERATOR REVIEW & OVERRULE)
 --------------------------------------------------------------------------------
 Command:
    python gui_app.py
@@ -52,8 +56,21 @@ Command:
 What it does:
    - Opens a visual desktop window.
    - Lets you open any individual image or pick quick samples.
-   - Click "⚡ Classify 'Input/' Folder" to batch scan and classify all images
-     across Input/ and its subdirectories with interactive results.
+   - Click "⚡ Classify 'Input/' Folder" to batch scan and classify all images.
+   - OPERATOR REVIEW & OVERRULE FEATURES:
+     * Flagging: Images with confidence < 80% are flagged with ⚠️.
+     * Filtering: Check "Show Low Confidence (<80%) Only" to review uncertain fields.
+     * 1-Click Overrule Keys: Select any row and press:
+       [1] -> Overrule to Dry
+       [2] -> Overrule to Flooded
+       [3] -> Overrule to Planted
+       [4] -> Overrule to Others
+       [Space] -> Accept / Reset to AI
+     * Save Reviewed Reports: Writes updated JSON reports with human audit records.
+     * Add Overruled to Dataset: 1-click copies corrected photos to Dataset/ so
+       running 'python train.py' continuously trains the AI on its mistakes!
+   - Click "📁 Open Output Folder" to open Output/ in File Explorer.
+
 
 
 
@@ -63,8 +80,9 @@ Command:
    python test_pipeline.py
 
 What it does:
-   - Runs 6 automated unit tests in under 1 second.
-   - Verifies that the model, GPU, dataset, and all 4 classes are working properly.
+   - Runs 7 automated unit tests in under 1 second.
+   - Verifies model, GPU, dataset, classes, per-subdirectory JSONs, and operator overrule export.
+
 
 
 6. VERIFY GPU HARDWARE ACCELERATION

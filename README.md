@@ -51,10 +51,12 @@ print("Confidence:", f"{result['confidence'] * 100:.1f}%")
 print("Probabilities:", result["probabilities"])
 
 # Batch classify all images in Input/ (including subdirectories):
+# Automatically creates an Output/ folder with a .json report for each subdirectory!
 predictor = RiceFieldPredictor()
-batch = predictor.predict_directory("Input", recursive=True, save_csv="results.csv")
+batch = predictor.predict_directory("Input", recursive=True, output_dir="Output")
 print("Total Classified:", batch["total_images"])
 print("Summary:", batch["summary_counts"])
+print("Generated JSON reports:", batch["generated_json_files"])
 ```
 
 ---
@@ -63,13 +65,14 @@ print("Summary:", batch["summary_counts"])
 
 ```bash
 # 1. Batch classify ALL pictures inside Input/ (and all subdirectories):
+# Generates Output/root.json, Output/<subdir>.json, and Output/all_results.json
 python inference.py
 
-# 2. Classify pictures in a custom folder (recursively):
-python inference.py --dir Input/my_subfolder
+# 2. Classify pictures in a custom folder and save JSONs to a custom output folder:
+python inference.py --dir Input/my_subfolder --output_dir Output
 
-# 3. Classify and export results to CSV and JSON:
-python inference.py --dir Input --csv results.csv --json results.json
+# 3. Classify and export an additional CSV table:
+python inference.py --dir Input --csv results.csv
 
 # 4. Classify a single image:
 python inference.py --image Dataset/Flood/flood_01.png
@@ -77,7 +80,7 @@ python inference.py --image Dataset/Flood/flood_01.png
 
 ---
 
-### 4. Interactive Graphical User Interface (GUI)
+### 4. Interactive Graphical User Interface (GUI) & Operator Review
 
 Launch the interactive desktop application:
 
@@ -85,19 +88,26 @@ Launch the interactive desktop application:
 python gui_app.py
 ```
 
-**GUI Features:**
+**GUI & Operator Review Features:**
 - ⚡ **Classify 'Input/' Folder**: Recursively scans all images across `Input/` and all nested subdirectories with one click.
-- 📋 **Batch Results Viewer**: Interactive table showing relative paths, classifications, and confidence; double-click any row to view it.
+- 📁 **Per-Subdirectory JSON Generation**: Automatically saves separate JSON reports into `Output/` for each subdirectory.
+- ⚠️ **Low-Confidence Flagging**: Automatically flags any prediction with confidence $< 80\%$ so operators can inspect questionable fields first.
+- ✏️ **1-Click Operator Overruling**:
+  - Hotkeys **`[1]` Dry**, **`[2]` Flooded**, **`[3]` Planted**, **`[4]` Others**, or **`[Space]`** to overrule or reset any AI decision.
+  - Overruled rows are highlighted as `[OVERRULED]`.
+- 💾 **Save Reviewed Reports**: Updates `Output/` JSON reports with human review audit data (`is_overruled`, `operator_label`, `reviewed_at`).
+- 📥 **Add Overruled to Dataset (Active Learning)**: 1-click copies corrected images into `Dataset/<Label>/` so running `python train.py` enables continuous learning from human feedback.
+- 📂 **Open Output Folder Button**: Quick 1-click button to open `Output/` in Windows File Explorer.
 - ⚡ **Quick Sample Buttons**: Instantly switch between Dry, Flooded, Planted, and Others samples.
 - 📊 **Real-Time Probability Bars**: Live probability distribution across all 4 classes.
-- 💾 **Export Results**: Save CSV/JSON reports or inspected images.
 
 ---
 
 ## 🧪 Automated Testing
 
-Run the test suite:
+Run the test suite (7 unit tests):
 
 ```bash
+
 python test_pipeline.py
 ```

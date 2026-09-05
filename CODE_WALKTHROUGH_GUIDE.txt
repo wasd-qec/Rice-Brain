@@ -146,8 +146,9 @@ Once 'rice_field_classifier.pth' exists, we use it to classify new images.
 Read in this order:
 --------------------------------------------------------------------------------
 A. inference.py (Root folder):
-   - Sets up command-line arguments (--image, --dir, --csv, --json).
+   - Sets up command-line arguments (--image, --dir, --output_dir, --csv, --json).
    - If no image is provided, automatically runs batch classification on Input/.
+   - Automatically writes a separate JSON report into Output/ for each subdirectory.
 
 B. src/inference.py -> class RiceFieldPredictor:
    - Lines 23 - 42: __init__()
@@ -159,25 +160,34 @@ B. src/inference.py -> class RiceFieldPredictor:
      * Passes the tensor into the model: logits = self.model(tensor).
      * Uses torch.softmax() to turn raw numbers into 0%-100% probabilities.
      * Returns a dictionary with the winner class (status) and confidence.
-   - Lines 87 - 165: predict_directory(input_dir="Input", recursive=True)
+   - Lines 89 - 180: predict_directory(input_dir="Input", recursive=True, output_dir="Output")
      * Recursively traverses any directory (defaults to Input/) and all subdirectories.
-     * Finds every image (.png, .jpg, .jpeg, .bmp, .webp, .tif).
-     * Classifies each image and returns summary counts, confidence, and full results.
-     * Optionally exports results directly to CSV or JSON.
+     * Groups images by their subdirectory.
+     * Automatically creates an 'Output/' folder with a .json report for each subdirectory:
+       - Output/root.json (for images in the root folder)
+       - Output/<subfolder>.json (for each nested subdirectory)
+       - Output/all_results.json (aggregate results)
+     * Optionally exports results directly to CSV.
 
 ================================================================================
-7. STEP 5 -> gui_app.py (Interactive Visual Interface)
+7. STEP 5 -> gui_app.py (Interactive Visual Interface & Operator Review)
 ================================================================================
 You don't need to read all of gui_app.py right away, but it's great to see how 
 everything connects visually:
-   - Lines 12 - 13: Imports CLASSES, CLASS_COLORS, and RiceFieldPredictor.
+   - Lines 12 - 13: Imports CLASSES, CLASS_COLORS, RiceFieldPredictor, save_reviewed_batch,
+     and export_overruled_to_dataset.
    - Lines 16 - 34: RiceFieldGUI class initializes the window, state, and predictor.
    - Lines 36 - 60: Top toolbar with "Open Image", "Classify 'Input/' Folder",
      "Batch Custom Folder...", and Quick Samples.
    - Lines 88 - 146: Right results sidebar with status badge and live probability bars.
-   - Lines 228 - 250: _on_batch_classify() triggers recursive directory classification.
-   - Lines 251 - 333: _show_batch_results_dialog() displays the interactive results table 
-     with double-click image previewing and CSV/JSON export.
+   - Lines 220 - 238: _on_batch_classify() triggers recursive directory classification
+     and automatically creates per-subdirectory JSON reports in 'Output/'.
+   - Lines 239 - 340: _show_batch_results_dialog() displays the interactive Operator 
+     Review window:
+     * Flagging low-confidence predictions (<80%).
+     * 1-click overrule hotkeys: [1] Dry, [2] Flooded, [3] Planted, [4] Others, [Space].
+     * "Save Reviewed Reports" updates JSON audit files in Output/.
+     * "Add Overruled to Dataset" copies human-corrected images to Dataset/ for retraining.
 
 ================================================================================
 8. CHEAT SHEET: "WHICH FUNCTION DOES WHAT?"
@@ -192,9 +202,11 @@ How GPU batches are formed           src/dataset.py     -> create_dataloaders (l
 The training & backprop math         src/train.py       -> train_classifier (line 56)
 How an image is resized for AI       src/inference.py   -> _preprocess (line 44)
 How probabilities (0-100%) are calculated  src/inference.py -> predict (line 72)
-How recursive batch scan works       src/inference.py   -> predict_directory (line 87)
-Interactive batch GUI dialog         gui_app.py         -> _show_batch_results_dialog (line 251)
-Automated health tests               test_pipeline.py   -> TestRiceFieldClassifier (line 15)
+How recursive batch scan works       src/inference.py   -> predict_directory (line 89)
+How overrules are exported           src/inference.py   -> export_overruled_to_dataset (line 270)
+Operator Review & Overrule dialog    gui_app.py         -> _show_batch_results_dialog (line 239)
+Automated health tests (7 tests)     test_pipeline.py   -> TestRiceFieldClassifier (line 15)
+
 
 ================================================================================
 RECOMMENDED FIRST ACTION:

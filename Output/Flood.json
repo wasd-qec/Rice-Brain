@@ -1,0 +1,153 @@
+{
+  "directory": "D:\\Farm\\NNetwork\\Dataset\\Flood",
+  "relative_directory": "Flood",
+  "total_images": 10,
+  "summary_counts": {
+    "Dry": 0,
+    "Flooded": 10,
+    "Planted": 0,
+    "Others": 0
+  },
+  "results": [
+    {
+      "filename": "flood_01.png",
+      "relative_path": "Flood/flood_01.png",
+      "relative_directory": "Flood",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Flood\\flood_01.png",
+      "status": "Flooded",
+      "confidence": 0.9760357737541199,
+      "probabilities": {
+        "Dry": 0.005879334174096584,
+        "Flooded": 0.9760357737541199,
+        "Planted": 0.011853440664708614,
+        "Others": 0.006231318693608046
+      }
+    },
+    {
+      "filename": "flood_02.png",
+      "relative_path": "Flood/flood_02.png",
+      "relative_directory": "Flood",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Flood\\flood_02.png",
+      "status": "Flooded",
+      "confidence": 0.974433422088623,
+      "probabilities": {
+        "Dry": 0.005527668632566929,
+        "Flooded": 0.974433422088623,
+        "Planted": 0.015732888132333755,
+        "Others": 0.004305961076170206
+      }
+    },
+    {
+      "filename": "flood_03.png",
+      "relative_path": "Flood/flood_03.png",
+      "relative_directory": "Flood",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Flood\\flood_03.png",
+      "status": "Flooded",
+      "confidence": 0.967860996723175,
+      "probabilities": {
+        "Dry": 0.00726206274703145,
+        "Flooded": 0.967860996723175,
+        "Planted": 0.014601030386984348,
+        "Others": 0.010275875218212605
+      }
+    },
+    {
+      "filename": "flood_04.png",
+      "relative_path": "Flood/flood_04.png",
+      "relative_directory": "Flood",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Flood\\flood_04.png",
+      "status": "Flooded",
+      "confidence": 0.98097825050354,
+      "probabilities": {
+        "Dry": 0.008194356225430965,
+        "Flooded": 0.98097825050354,
+        "Planted": 0.0068174246698617935,
+        "Others": 0.004009972792118788
+      }
+    },
+    {
+      "filename": "flood_05.png",
+      "relative_path": "Flood/flood_05.png",
+      "relative_directory": "Flood",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Flood\\flood_05.png",
+      "status": "Flooded",
+      "confidence": 0.9747138619422913,
+      "probabilities": {
+        "Dry": 0.009722703136503696,
+        "Flooded": 0.9747138619422913,
+        "Planted": 0.008719073608517647,
+        "Others": 0.006844292860478163
+      }
+    },
+    {
+      "filename": "flood_06.png",
+      "relative_path": "Flood/flood_06.png",
+      "relative_directory": "Flood",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Flood\\flood_06.png",
+      "status": "Flooded",
+      "confidence": 0.9591439962387085,
+      "probabilities": {
+        "Dry": 0.015372456051409245,
+        "Flooded": 0.9591439962387085,
+        "Planted": 0.012705720029771328,
+        "Others": 0.012777846306562424
+      }
+    },
+    {
+      "filename": "flood_07.png",
+      "relative_path": "Flood/flood_07.png",
+      "relative_directory": "Flood",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Flood\\flood_07.png",
+      "status": "Flooded",
+      "confidence": 0.9808900356292725,
+      "probabilities": {
+        "Dry": 0.005676779430359602,
+        "Flooded": 0.9808900356292725,
+        "Planted": 0.008018257096409798,
+        "Others": 0.00541497441008687
+      }
+    },
+    {
+      "filename": "flood_08.png",
+      "relative_path": "Flood/flood_08.png",
+      "relative_directory": "Flood",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Flood\\flood_08.png",
+      "status": "Flooded",
+      "confidence": 0.9353273510932922,
+      "probabilities": {
+        "Dry": 0.017717236652970314,
+        "Flooded": 0.9353273510932922,
+        "Planted": 0.02931351400911808,
+        "Others": 0.017641818150877953
+      }
+    },
+    {
+      "filename": "flood_09.png",
+      "relative_path": "Flood/flood_09.png",
+      "relative_directory": "Flood",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Flood\\flood_09.png",
+      "status": "Flooded",
+      "confidence": 0.9700325727462769,
+      "probabilities": {
+        "Dry": 0.009358583949506283,
+        "Flooded": 0.9700325727462769,
+        "Planted": 0.011315187439322472,
+        "Others": 0.009293565526604652
+      }
+    },
+    {
+      "filename": "flood_10.png",
+      "relative_path": "Flood/flood_10.png",
+      "relative_directory": "Flood",
+      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Flood\\flood_10.png",
+      "status": "Flooded",
+      "confidence": 0.980004608631134,
+      "probabilities": {
+        "Dry": 0.006087728776037693,
+        "Flooded": 0.980004608631134,
+        "Planted": 0.007398729212582111,
+        "Others": 0.006508956663310528
+      }
+    }
+  ]
+}

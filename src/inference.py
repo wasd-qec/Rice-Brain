@@ -7,6 +7,8 @@ import sys
 import argparse
 import json
 import csv
+import shutil
+from datetime import datetime
 import numpy as np
 from PIL import Image
 import torch
@@ -86,10 +88,11 @@ class RiceFieldPredictor:
             "probabilities": prob_dict
         }
 
-    def predict_directory(self, input_dir="Input", recursive=True, save_csv=None, save_json=None):
+    def predict_directory(self, input_dir="Input", recursive=True, output_dir="Output", save_csv=None, save_json=None):
         """
         Recursively scans input_dir (and all nested subdirectories) for any picture file,
-        classifies each into ['Dry', 'Flooded', 'Planted', 'Others'], and aggregates results.
+        classifies each into ['Dry', 'Flooded', 'Planted', 'Others'], generates per-subdirectory
+        JSON reports inside output_dir, and aggregates results.
         """
         if not os.path.exists(input_dir):
             raise FileNotFoundError(f"Input directory not found: '{input_dir}'")
@@ -104,40 +107,93 @@ class RiceFieldPredictor:
                     if ext in valid_extensions:
                         full_p = os.path.join(root, f)
                         rel_p = os.path.relpath(full_p, input_dir)
-                        image_files.append((full_p, rel_p, f))
+                        rel_d = os.path.relpath(root, input_dir)
+                        image_files.append((full_p, rel_p, rel_d, f))
         else:
             for f in sorted(os.listdir(input_dir)):
                 full_p = os.path.join(input_dir, f)
                 if os.path.isfile(full_p):
                     ext = os.path.splitext(f)[1].lower()
                     if ext in valid_extensions:
-                        image_files.append((full_p, f, f))
+                        image_files.append((full_p, f, ".", f))
                         
         results = []
         summary_counts = {c: 0 for c in CLASSES}
+        subdirs_map = {}
         
-        for full_p, rel_p, fname in image_files:
+        for full_p, rel_p, rel_d, fname in image_files:
             try:
                 pred = self.predict(full_p)
+                norm_rel_p = rel_p.replace("\\", "/")
+                norm_rel_d = rel_d.replace("\\", "/")
+                conf = pred["confidence"]
+                
                 item = {
                     "filename": fname,
-                    "relative_path": rel_p.replace("\\", "/"),
+                    "relative_path": norm_rel_p,
+                    "relative_directory": norm_rel_d,
                     "full_path": os.path.abspath(full_p),
+                    "ai_status": pred["status"],
                     "status": pred["status"],
-                    "confidence": pred["confidence"],
+                    "confidence": conf,
+                    "needs_review": bool(conf < 0.80),
+                    "is_overruled": False,
+                    "operator_label": None,
+                    "reviewed_at": None,
                     "probabilities": pred["probabilities"]
                 }
                 results.append(item)
                 summary_counts[pred["status"]] += 1
+                
+                if norm_rel_d not in subdirs_map:
+                    subdirs_map[norm_rel_d] = []
+                subdirs_map[norm_rel_d].append(item)
             except Exception as e:
                 print(f"[!] Warning: Failed to classify '{full_p}': {e}")
                 
         output = {
             "total_images": len(results),
             "directory": os.path.abspath(input_dir),
+            "output_directory": os.path.abspath(output_dir) if output_dir else None,
             "summary_counts": summary_counts,
-            "results": results
+            "overruled_count": 0,
+            "needs_review_count": sum(1 for i in results if i["needs_review"]),
+            "results": results,
+            "subdirectories": list(subdirs_map.keys()),
+            "generated_json_files": []
         }
+        
+        # Automatically generate JSON reports per subdirectory inside output_dir
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+            for subdir_rel, items in subdirs_map.items():
+                if subdir_rel == ".":
+                    subdir_json_name = "root.json"
+                    subdir_json_path = os.path.join(output_dir, subdir_json_name)
+                else:
+                    subdir_json_path = os.path.join(output_dir, subdir_rel + ".json")
+                    os.makedirs(os.path.dirname(subdir_json_path), exist_ok=True)
+                
+                subdir_counts = {c: 0 for c in CLASSES}
+                for itm in items:
+                    subdir_counts[itm["status"]] += 1
+                    
+                subdir_report = {
+                    "directory": os.path.abspath(os.path.join(input_dir, subdir_rel)),
+                    "relative_directory": subdir_rel,
+                    "total_images": len(items),
+                    "summary_counts": subdir_counts,
+                    "results": items
+                }
+                with open(subdir_json_path, "w", encoding="utf-8") as jf:
+                    json.dump(subdir_report, jf, indent=2)
+                output["generated_json_files"].append(os.path.abspath(subdir_json_path))
+            
+            # Overall aggregate report
+            all_json_path = os.path.join(output_dir, "all_results.json")
+            with open(all_json_path, "w", encoding="utf-8") as ajf:
+                json.dump(output, ajf, indent=2)
+            output["generated_json_files"].append(os.path.abspath(all_json_path))
         
         if save_json:
             with open(save_json, "w", encoding="utf-8") as jf:
@@ -147,19 +203,125 @@ class RiceFieldPredictor:
         if save_csv:
             with open(save_csv, "w", newline="", encoding="utf-8") as cf:
                 writer = csv.writer(cf)
-                header = ["filename", "relative_path", "predicted_status", "confidence"] + [f"prob_{c}" for c in CLASSES]
+                header = ["filename", "relative_path", "subdirectory", "predicted_status", "confidence", "needs_review", "is_overruled", "operator_label"] + [f"prob_{c}" for c in CLASSES]
                 writer.writerow(header)
                 for item in results:
                     row = [
                         item["filename"],
                         item["relative_path"],
+                        item["relative_directory"],
                         item["status"],
-                        f"{item['confidence']*100:.2f}%"
+                        f"{item['confidence']*100:.2f}%",
+                        item["needs_review"],
+                        item["is_overruled"],
+                        item["operator_label"] or ""
                     ] + [f"{item['probabilities'].get(c, 0.0)*100:.2f}%" for c in CLASSES]
                     writer.writerow(row)
             print(f"[+] Saved directory classification CSV to: {save_csv}")
             
         return output
+
+
+def save_reviewed_batch(batch_result, output_dir=None):
+    """
+    Saves an updated/reviewed batch dictionary with operator overrules to disk.
+    Updates each subdirectory JSON and all_results.json.
+    """
+    out_dir = output_dir or batch_result.get("output_directory") or "Output"
+    os.makedirs(out_dir, exist_ok=True)
+    
+    # Recalculate summary counts based on active status
+    summary_counts = {c: 0 for c in CLASSES}
+    overruled_count = 0
+    needs_review_count = 0
+    subdirs_map = {}
+    
+    for item in batch_result["results"]:
+        status = item["status"]
+        if status in summary_counts:
+            summary_counts[status] += 1
+        if item.get("is_overruled"):
+            overruled_count += 1
+        if item.get("needs_review") and not item.get("is_overruled"):
+            needs_review_count += 1
+            
+        rel_d = item.get("relative_directory", ".")
+        if rel_d not in subdirs_map:
+            subdirs_map[rel_d] = []
+        subdirs_map[rel_d].append(item)
+        
+    batch_result["summary_counts"] = summary_counts
+    batch_result["overruled_count"] = overruled_count
+    batch_result["needs_review_count"] = needs_review_count
+    
+    generated_files = []
+    for subdir_rel, items in subdirs_map.items():
+        if subdir_rel == ".":
+            subdir_json_path = os.path.join(out_dir, "root.json")
+        else:
+            subdir_json_path = os.path.join(out_dir, subdir_rel + ".json")
+            os.makedirs(os.path.dirname(subdir_json_path), exist_ok=True)
+            
+        subdir_counts = {c: 0 for c in CLASSES}
+        for itm in items:
+            s = itm["status"]
+            if s in subdir_counts:
+                subdir_counts[s] += 1
+                
+        subdir_report = {
+            "directory": items[0]["full_path"] if items else "",
+            "relative_directory": subdir_rel,
+            "total_images": len(items),
+            "summary_counts": subdir_counts,
+            "results": items
+        }
+        with open(subdir_json_path, "w", encoding="utf-8") as jf:
+            json.dump(subdir_report, jf, indent=2)
+        generated_files.append(os.path.abspath(subdir_json_path))
+        
+    all_json_path = os.path.join(out_dir, "all_results.json")
+    with open(all_json_path, "w", encoding="utf-8") as ajf:
+        json.dump(batch_result, ajf, indent=2)
+    generated_files.append(os.path.abspath(all_json_path))
+    
+    batch_result["generated_json_files"] = generated_files
+    return generated_files
+
+
+def export_overruled_to_dataset(overruled_items, dataset_dir="Dataset"):
+    """
+    Copies human-overruled images into the appropriate Dataset/<class> folder
+    so they can be trained on during the next python train.py run.
+    """
+    if not os.path.exists(dataset_dir):
+        raise FileNotFoundError(f"Dataset directory '{dataset_dir}' does not exist.")
+        
+    class_dir_map = {
+        "Dry": "Dry",
+        "Flooded": "Flood",  # Dataset folder is named Flood
+        "Planted": "Planted",
+        "Others": "Others"
+    }
+    
+    copied = []
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    for idx, item in enumerate(overruled_items):
+        target_label = item.get("operator_label") or item.get("status")
+        folder_name = class_dir_map.get(target_label, target_label)
+        target_dir = os.path.join(dataset_dir, folder_name)
+        os.makedirs(target_dir, exist_ok=True)
+        
+        src_path = item["full_path"]
+        base_name = os.path.basename(src_path)
+        name_part, ext_part = os.path.splitext(base_name)
+        new_filename = f"overruled_{timestamp}_{idx:03d}_{name_part}{ext_part}"
+        dest_path = os.path.join(target_dir, new_filename)
+        
+        shutil.copy2(src_path, dest_path)
+        copied.append((src_path, dest_path))
+        
+    return copied
 
 
 def predict_field_state(image_path, model_path="rice_field_classifier.pth"):
@@ -172,10 +334,12 @@ def predict_input_directory(input_dir="Input", model_path="rice_field_classifier
     return predictor.predict_directory(input_dir=input_dir, **kwargs)
 
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Predict Rice Field State (Dry, Flooded, Planted, Others).")
     parser.add_argument("--image", type=str, default=None, help="Path to single input image")
     parser.add_argument("--dir", "--input_dir", dest="input_dir", type=str, default=None, help="Directory to scan recursively (default: Input/)")
+    parser.add_argument("--output_dir", "-o", type=str, default="Output", help="Directory to save per-subdirectory JSON reports (default: Output/)")
     parser.add_argument("--model", type=str, default="rice_field_classifier.pth", help="Model checkpoint path")
     parser.add_argument("--csv", type=str, default=None, help="Optional CSV output path for batch results")
     parser.add_argument("--json", type=str, default=None, help="Optional JSON output path for batch results")
@@ -196,7 +360,12 @@ if __name__ == "__main__":
     else:
         target_dir = args.input_dir if args.input_dir else "Input"
         print(f"[*] Scanning & classifying all images in '{target_dir}' (including all subdirectories)...")
-        batch_res = predictor.predict_directory(input_dir=target_dir, save_csv=args.csv, save_json=args.json)
+        batch_res = predictor.predict_directory(
+            input_dir=target_dir,
+            output_dir=args.output_dir,
+            save_csv=args.csv,
+            save_json=args.json
+        )
         
         print("\n" + "="*75)
         print(f"{'RELATIVE PATH':<45} | {'STATUS':<10} | {'CONFIDENCE':<10}")
@@ -209,4 +378,11 @@ if __name__ == "__main__":
         print("="*75)
         print(f"Total Images Classified: {batch_res['total_images']}")
         print("Summary Breakdown:", ", ".join([f"{k}: {v}" for k, v in batch_res["summary_counts"].items()]))
+        
+        if batch_res.get("generated_json_files"):
+            print(f"[+] Subdirectory JSON reports saved to '{args.output_dir}/':")
+            for jpath in batch_res["generated_json_files"]:
+                rel_jpath = os.path.relpath(jpath, os.getcwd()).replace("\\", "/")
+                print(f"    - {rel_jpath}")
         print("="*75 + "\n")
+
