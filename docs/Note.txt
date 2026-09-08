@@ -1,0 +1,93 @@
+================================================================================
+🌾 RICE FIELD AI - DAY-TO-DAY COMMAND CHEAT SHEET
+================================================================================
+
+1. LAUNCH THE WEB PARCEL DATABASE & CURATION DASHBOARD
+--------------------------------------------------------------------------------
+Command:
+   python web_server.py
+   # Or on a custom port: python web_server.py 8000
+
+What it does:
+   - Starts the web server on http://localhost:5000.
+   - Database 'farm_parcels.db' is NOT created until you click 'Classify Input Directory'.
+   - Scans images in Input/, classifies them, and stores parcels with GPS coordinate as Primary Key.
+   - PICTURE RULES:
+     * If 'Planted' or Low Confidence (<80%): flag = True and saves picture BLOB in database.
+     * Otherwise: flag = False and picture = NULL (discards picture).
+     * If coordinate already exists, replaces the row with updated data.
+   - Operator Review Modal:
+     * View the saved picture from the database.
+     * Confirm category: if 'Planted', keeps picture & flag; if changed to 'Dry', 'Flooded', or 'Others', clears flag and permanently deletes the picture.
+
+
+2. LAUNCH THE DESKTOP DATASET CURATOR & TRAINING MANAGER
+--------------------------------------------------------------------------------
+Command:
+   python gui_app.py
+
+What it does:
+   - Dual-pool curation tool: Unsorted Pool (Unsorted/) vs Sorted Dataset (Dataset/).
+   - Quick Keyboard Shortcuts:
+     [1] -> Move to Dry
+     [2] -> Move to Flooded
+     [3] -> Move to Planted
+     [4] -> Move to Others
+     [U] -> Return to Unsorted Pool
+     [Space] -> Accept AI Suggestion
+     [↑ / ↓] -> Navigate rows
+     [Del] -> Delete image
+   - Auto-Advances selection immediately after moving.
+   - Fix Mis-sorts: Select any sorted image and press 1-4 to move it to the right class folder on disk.
+   - One-Click Retraining: Click "🚀 Train AI Model" to retrain in the background.
+
+
+3. TRAIN THE NEURAL NETWORK BRAIN (RTX 5060 GPU ACCELERATED)
+--------------------------------------------------------------------------------
+Command:
+   python train.py
+
+What it does:
+   - Loads all training images in Dataset/ (Dry, Flood, Planted, Others).
+   - Trains for 12 epochs using CUDA GPU acceleration.
+   - Saves checkpoint weights to 'rice_field_classifier.pth'.
+
+
+4. BATCH CLASSIFY IMAGES & GENERATE JSON / CSV REPORTS
+--------------------------------------------------------------------------------
+Command:
+   python inference.py
+   python inference.py --dir Input --output_dir Output
+   python inference.py --dir Input --csv classification_summary.csv
+
+What it does:
+   - Recursively scans Input/ and subdirectories.
+   - Extracts EXIF GPS coordinates from every image.
+   - Generates JSON reports in Output/ and aggregate CSV.
+
+
+5. EMBED REALISTIC CAMBODIA GPS COORDINATES
+--------------------------------------------------------------------------------
+Command:
+   python embed_coordinates.py Input
+   python embed_coordinates.py Dataset
+   python embed_coordinates.py path/to/image.jpg
+
+What it does:
+   - Generates realistic farmland GPS coordinates across Cambodia's rice provinces
+     (Battambang, Takeo, Prey Veng, Siem Reap, Pursat, Kampong Cham, etc.).
+   - Writes standard EXIF GPS tags directly into JPEG/PNG metadata.
+
+
+6. RUN THE AUTOMATED TEST SUITES
+--------------------------------------------------------------------------------
+Command:
+   python -m unittest discover -s tests
+   # Or individually:
+   # python -m unittest tests/test_pipeline.py
+   # python -m unittest tests/test_parcel_db.py
+
+What it does:
+   - test_pipeline.py: 7 tests for model architecture, dataset loader, and continuous retraining.
+   - test_parcel_db.py: 3 tests for lazy database creation, primary key upserts, and picture retention rules.
+================================================================================

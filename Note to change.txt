@@ -1,8 +1,0 @@
-remove the 4 dummy button
-the pop up save issue
-change the bbelow confidence 80 to color red(fiilter still work for quick look)
-get more dataset
-instruction in gui the keys turn it vertical instead of horizontal (call it tips)
-sleep in time sensitive:
-    how to put date upload and review date
-    how to organize data

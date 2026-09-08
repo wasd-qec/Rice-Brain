@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌾 Rice Field AI — Parcel Database & Curation Dashboard</title>
+  <meta name="description" content="Rice Field Parcel Database and AI Classification Review Dashboard with lazy SQLite persistence and operator curation.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-branding">
+        <div class="logo-icon">🌾</div>
+        <div>
+          <h1 class="header-title">Rice Field AI — Parcel Database</h1>
+          <p class="header-subtitle">Coordinate-Indexed Farm Parcel Tracking & Curation System</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div id="db-status-badge" class="badge badge-neutral">
+          <span class="status-dot"></span>
+          <span id="db-status-text">Checking Database...</span>
+        </div>
+        <button id="btn-classify" class="btn btn-primary" onclick="triggerClassification()">
+          <span class="btn-icon">⚡</span>
+          <span class="btn-label">Classify Input Directory</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Metrics Cards -->
+    <section class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">Total Parcels</span>
+          <span class="metric-icon">🗺️</span>
+        </div>
+        <div class="metric-value" id="val-total">0</div>
+        <div class="metric-sub">Stored in database</div>
+      </div>
+
+      <div class="metric-card metric-warning" id="card-flagged">
+        <div class="metric-header">
+          <span class="metric-title">Flagged for Review</span>
+          <span class="metric-icon">⚠️</span>
+        </div>
+        <div class="metric-value" id="val-flagged">0</div>
+        <div class="metric-sub">Planted or Low Conf (&lt;80%)</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">🏜️ Dry</span>
+        </div>
+        <div class="metric-value" id="val-dry">0</div>
+        <div class="metric-sub">Harvested / Bare soil</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">💧 Flooded</span>
+        </div>
+        <div class="metric-value" id="val-flooded">0</div>
+        <div class="metric-sub">Water prepared</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">🌿 Planted</span>
+        </div>
+        <div class="metric-value" id="val-planted">0</div>
+        <div class="metric-sub">Green rice growing</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">🌳 Others</span>
+        </div>
+        <div class="metric-value" id="val-others">0</div>
+        <div class="metric-sub">Roads, canals, houses</div>
+      </div>
+    </section>
+
+    <!-- Warning Banner for Flagged Parcels -->
+    <div id="warning-banner" class="warning-banner hidden">
+      <div class="banner-icon">⚠️</div>
+      <div class="banner-content">
+        <h3 class="banner-title">Operator Review Required</h3>
+        <p class="banner-desc" id="warning-banner-text">
+          There are parcels flagged as <strong>Planted</strong> or with <strong>low AI confidence (&lt;80%)</strong>. 
+          Their picture has been saved to the database. Click <strong>Review</strong> to verify each parcel.
+        </p>
+      </div>
+    </div>
+
+    <!-- Table Section -->
+    <main class="content-card">
+      <div class="card-toolbar">
+        <div class="toolbar-left">
+          <h2 class="card-heading">Database Records (No Pictures)</h2>
+          <span class="record-counter" id="record-count-badge">0 records</span>
+        </div>
+        <div class="toolbar-right">
+          <div class="filter-group">
+            <label for="filter-status" class="filter-label">Filter:</label>
+            <select id="filter-status" class="filter-select" onchange="renderTable()">
+              <option value="all">All Statuses</option>
+              <option value="flagged">⚠️ Flagged Only</option>
+              <option value="Dry">🏜️ Dry</option>
+              <option value="Flooded">💧 Flooded</option>
+              <option value="Planted">🌿 Planted</option>
+              <option value="Others">🌳 Others</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" onclick="loadAllData()">
+            <span>🔄 Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="data-table" id="parcels-table">
+          <thead>
+            <tr>
+              <th>Coordinate (Primary Key)</th>
+              <th>Date (Last Modified)</th>
+              <th>Status</th>
+              <th>Confidence</th>
+              <th>Flag / Review</th>
+              <th>Operator Action</th>
+            </tr>
+          </thead>
+          <tbody id="parcels-tbody">
+            <tr class="empty-row">
+              <td colspan="6">
+                <div class="empty-state">
+                  <span class="empty-icon">🗄️</span>
+                  <h3>Database not created yet</h3>
+                  <p>Click <strong>"Classify Input Directory"</strong> above to scan images, create <code>farm_parcels.db</code>, and populate records.</p>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <!-- Review Modal -->
+  <div id="review-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title">🔎 Operator Parcel Review</h2>
+          <p class="modal-subtitle" id="modal-subtitle">Inspecting saved picture from database</p>
+        </div>
+        <button class="btn-close" onclick="closeModal()">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="modal-preview-container">
+          <img id="modal-img" src="" alt="Parcel Preview" class="modal-image">
+          <div id="modal-img-loading" class="img-loading-spinner hidden">Loading Picture from Database...</div>
+        </div>
+
+        <div class="modal-details">
+          <div class="detail-row">
+            <span class="detail-label">📍 Coordinate:</span>
+            <span class="detail-val mono" id="modal-coord">--</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">📅 Date:</span>
+            <span class="detail-val" id="modal-date">--</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">🤖 Current AI Status:</span>
+            <span class="detail-val" id="modal-status">--</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">🎯 Confidence:</span>
+            <span class="detail-val" id="modal-conf">--</span>
+          </div>
+          
+          <div class="rule-callout">
+            <p><strong>Curation Rules:</strong></p>
+            <ul>
+              <li>If <strong>Planted</strong>: Picture and review flag will remain stored in the database.</li>
+              <li>If <strong>Dry</strong>, <strong>Flooded</strong>, or <strong>Others</strong>: Review flag is cleared and the picture is permanently removed from the database.</li>
+            </ul>
+          </div>
+
+          <div class="decision-group">
+            <label class="decision-title">Select Operator Decision:</label>
+            <div class="decision-buttons">
+              <button class="btn btn-choice btn-dry" onclick="submitDecision('Dry')">
+                🏜️ Dry
+              </button>
+              <button class="btn btn-choice btn-flood" onclick="submitDecision('Flooded')">
+                💧 Flooded
+              </button>
+              <button class="btn btn-choice btn-plant" onclick="submitDecision('Planted')">
+                🌿 Planted (Keep Picture)
+              </button>
+              <button class="btn btn-choice btn-other" onclick="submitDecision('Others')">
+                🌳 Others
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

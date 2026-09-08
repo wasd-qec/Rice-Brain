@@ -1,0 +1,11 @@
+ok next is I want a database that contains the 
+:[coordinate, picture(the jpeg), date of the picture, status(flooded others.....), flag], 
+and a simple website, the website should show a table rendering of the database 
+without the picture(just coordinate, date(last modified), status.  
+In the website i can just hit classify then it will classify whatever is in the Input directory 
+and if its planted oor low confidence we keep the picture by saving it in the database 
+else lose the picture also by turn the boolean true. if the coordinate is the same 
+then rewrite the rest of the row with the new info(treat coordinate as primary key). 
+do not have database just yet until i hit classify. if the flag is true trigger a warning in the website 
+and have the operator decide if the picture is in which category, 
+if its still planted keep the flag and picture else lose it in the database

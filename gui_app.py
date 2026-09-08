@@ -1,208 +1,249 @@
 """
-gui_app.py - Interactive Desktop Application & Review Studio for 4-Class Rice Field State Classification.
-Classes: ['Dry', 'Flooded', 'Planted', 'Others']
+gui_app.py - Rice Field AI: Dataset Curator & Training Manager.
 
-Unified Table & Live Inspection Layout:
-- Batch directory classification & single/multi image loading
-- Image navigation (Table click, Up/Down arrow keys, Previous/Next buttons, Auto-Advance)
-- High-visibility red highlighting for low-confidence (<80%) predictions
-- 1-click human operator overrule controls with hotkeys [1-4] & [Space]
-- Vertical Tips & Shortcuts guide
-- Direct export of human corrections to Dataset/ for continuous training
+Allows users to:
+1. View and sort images from an 'Unsorted/' pool into 4 categories:
+   - Dry -> Dataset/Dry/
+   - Flooded -> Dataset/Flood/
+   - Planted -> Dataset/Planted/
+   - Others -> Dataset/Others/
+2. View and edit sorted images to quickly fix any mis-sorted files.
+3. Use keyboard shortcuts [1-4] to sort or re-sort instantly with auto-advance.
+4. View image preview, EXIF GPS coordinates, and AI pre-label suggestions.
+5. Launch model training (python train.py) directly with live background progress.
 """
 
 import os
 import sys
-import csv
 import shutil
-from datetime import datetime
+import csv
+import json
+import threading
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, messagebox, filedialog
+from datetime import datetime
 from PIL import Image, ImageTk
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-from src.inference import RiceFieldPredictor, save_reviewed_batch, export_overruled_to_dataset
 from src.model import CLASSES, CLASS_COLORS
+from src.inference import RiceFieldPredictor, extract_image_gps
+from src.train import train_classifier
+
+# Mapping from class name to folder in Dataset/
+CLASS_TO_FOLDER = {
+    "Dry": "Dry",
+    "Flooded": "Flood",
+    "Planted": "Planted",
+    "Others": "Others",
+}
+
+FOLDER_TO_CLASS = {
+    "dry": "Dry",
+    "flood": "Flooded",
+    "flooded": "Flooded",
+    "planted": "Planted",
+    "others": "Others",
+    "other": "Others",
+}
+
+VALID_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
 
 
-class RiceFieldGUI:
-    def __init__(self, root, model_path="rice_field_classifier.pth"):
+class DatasetCuratorApp:
+    def __init__(self, root):
         self.root = root
-        self.root.title("🌾 Rice Field State Identifier & Operator Review Studio")
-        self.root.geometry("1260x840")
-        self.root.minsize(1050, 680)
+        self.root.title("🌾 Rice Field AI — Dataset Curator & Training Manager")
+        self.root.geometry("1240x840")
+        self.root.minsize(1020, 680)
 
-        self.model_path = model_path
-        self.predictor = RiceFieldPredictor(model_path=model_path)
+        self.unsorted_dir = os.path.abspath("Unsorted")
+        self.dataset_dir = os.path.abspath("Dataset")
+        os.makedirs(self.unsorted_dir, exist_ok=True)
+        os.makedirs(self.dataset_dir, exist_ok=True)
+        for sub in ["Dry", "Flood", "Planted", "Others"]:
+            os.makedirs(os.path.join(self.dataset_dir, sub), exist_ok=True)
 
-        # Batch state tracking
-        self.current_batch = {
-            "total_images": 0,
-            "directory": os.path.abspath("Input"),
-            "output_directory": os.path.abspath("Output"),
-            "summary_counts": {c: 0 for c in CLASSES},
-            "overruled_count": 0,
-            "needs_review_count": 0,
-            "results": [],
-            "subdirectories": [],
-            "generated_json_files": []
-        }
-        self.item_map = {}  # tree_item_id -> result dict
+        # AI Predictor (lazy-loaded or optional)
+        self.predictor = None
+        self._init_predictor()
+
+        # State data
+        self.current_view_mode = "unsorted"  # 'unsorted', 'all_sorted', 'Dry', 'Flooded', 'Planted', 'Others'
+        self.items_data = []  # List of dicts currently displayed in the table
+        self.item_map = {}    # Tree item id -> item dict
         self.current_inspected_item = None
-        self.preview_photo_ref = [None]  # Keep in memory to prevent garbage collection
+        self.preview_photo_ref = [None]
+        self.is_training = False
 
-        # Tkinter variables
-        self.status_var = tk.StringVar(value="Ready. Loading initial images...")
-        self.summary_var = tk.StringVar(value="Total Images: 0   |   Dry: 0   |   Flooded: 0   |   Planted: 0   |   Others: 0")
-        self.review_stat_var = tk.StringVar(value="⚠️ Low Confidence (<80%): 0   |   ✏️ Overruled by Operator: 0")
+        # Live Counts
+        self.counts = {
+            "Unsorted": 0,
+            "Dry": 0,
+            "Flooded": 0,
+            "Planted": 0,
+            "Others": 0,
+            "Total_Sorted": 0,
+        }
 
-        self.var_filter_low_conf = tk.BooleanVar(value=False)
-        self.var_filter_overruled = tk.BooleanVar(value=False)
+        # UI Variables
+        self.status_var = tk.StringVar(value="Ready. Select an image or press [1-4] to sort.")
         self.var_auto_advance = tk.BooleanVar(value=True)
+        self.var_ai_assist = tk.BooleanVar(value=True)
 
         self._configure_styles()
         self._setup_ui()
         self._bind_shortcuts()
 
-        # Automatically load and classify 'Input/' if images exist, or ready state
-        self._initial_load()
+        # Initial refresh
+        self.refresh_all_data()
+
+    def _init_predictor(self):
+        try:
+            if os.path.exists("rice_field_classifier.pth"):
+                self.predictor = RiceFieldPredictor("rice_field_classifier.pth")
+        except Exception as e:
+            print(f"[!] Note: AI Predictor not loaded ({e}). Training can still be run.")
+            self.predictor = None
 
     def _configure_styles(self):
         style = ttk.Style()
-        # Ensure Treeview tag foregrounds display cleanly
         if "clam" in style.theme_names():
             try:
                 style.theme_use("clam")
             except Exception:
                 pass
 
+        style.configure("Treeview.Heading", font=("Helvetica", 9, "bold"))
+        style.configure("Treeview", font=("Helvetica", 9), rowheight=24)
+
     def _setup_ui(self):
-        # 1. Top Summary Statistics Header
-        header_frame = ttk.Frame(self.root, padding=(12, 6))
+        # 1. Top Dashboard / Summary Header
+        header_frame = tk.Frame(self.root, bg="#1a2332", padx=14, pady=10)
         header_frame.pack(fill=tk.X, side=tk.TOP)
 
-        lbl_summary = ttk.Label(header_frame, textvariable=self.summary_var, font=("Helvetica", 11, "bold"))
-        lbl_summary.pack(anchor="w")
-
-        lbl_rev_summary = ttk.Label(header_frame, textvariable=self.review_stat_var, font=("Helvetica", 10, "bold"), foreground="#c62828")
-        lbl_rev_summary.pack(anchor="w", pady=(2, 0))
-
-        # 2. Main Action Toolbar (Open image, batch input, custom folder, prev, next, save image)
-        toolbar = ttk.Frame(self.root, padding=(12, 4))
-        toolbar.pack(fill=tk.X, side=tk.TOP)
-
-        btn_open = ttk.Button(toolbar, text="📂 Open Image(s)...", command=self._on_open_images)
-        btn_open.pack(side=tk.LEFT, padx=(0, 4))
-
-        btn_batch_input = ttk.Button(toolbar, text="⚡ Classify 'Input/' Folder", command=lambda: self.load_directory("Input"))
-        btn_batch_input.pack(side=tk.LEFT, padx=4)
-
-        btn_batch_folder = ttk.Button(toolbar, text="📁 Batch Custom Folder...", command=self._on_open_custom_folder)
-        btn_batch_folder.pack(side=tk.LEFT, padx=4)
-
-        # Navigation Buttons
-        ttk.Separator(toolbar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=2)
-
-        btn_prev = ttk.Button(toolbar, text="⏮ Previous", command=self._on_prev_image)
-        btn_prev.pack(side=tk.LEFT, padx=3)
-
-        btn_next = ttk.Button(toolbar, text="⏭ Next", command=self._on_next_image)
-        btn_next.pack(side=tk.LEFT, padx=3)
-
-        btn_save_img = ttk.Button(toolbar, text="💾 Save Image", command=self._on_save_current_image)
-        btn_save_img.pack(side=tk.RIGHT, padx=4)
-
-        # 3. Filter & Auto-Advance Options Bar
-        filter_frame = ttk.Frame(self.root, padding=(12, 2))
-        filter_frame.pack(fill=tk.X, side=tk.TOP)
-
-        chk_low = ttk.Checkbutton(
-            filter_frame,
-            text="⚠️ Low Confidence (<80%) Only",
-            variable=self.var_filter_low_conf,
-            command=self._populate_table
+        title_lbl = tk.Label(
+            header_frame,
+            text="🌾 Rice Field AI — Dataset Curator & Training Manager",
+            font=("Helvetica", 14, "bold"),
+            bg="#1a2332",
+            fg="#ffffff"
         )
-        chk_low.pack(side=tk.LEFT, padx=(0, 12))
+        title_lbl.pack(anchor="w")
 
-        chk_over = ttk.Checkbutton(
-            filter_frame,
-            text="✏️ Overruled Only",
-            variable=self.var_filter_overruled,
-            command=self._populate_table
-        )
-        chk_over.pack(side=tk.LEFT, padx=(0, 12))
+        # Counts Bar
+        self.stats_box = tk.Frame(header_frame, bg="#1a2332")
+        self.stats_box.pack(anchor="w", pady=(6, 0), fill=tk.X)
 
-        chk_advance = ttk.Checkbutton(
-            filter_frame,
-            text="⚡ Auto-Advance to Next Image on Overrule",
-            variable=self.var_auto_advance
-        )
-        chk_advance.pack(side=tk.LEFT, padx=(0, 12))
+        self.stat_labels = {}
+        badges = [
+            ("Unsorted", "📥 Unsorted: 0", "#ff9800"),
+            ("Dry", "🏜️ Dry: 0", "#e65100"),
+            ("Flooded", "💧 Flooded: 0", "#0288d1"),
+            ("Planted", "🌿 Planted: 0", "#2e7d32"),
+            ("Others", "🌳 Others: 0", "#546e7a"),
+            ("Total_Sorted", "📊 Total Sorted: 0", "#ffffff"),
+        ]
+        for key, text, color in badges:
+            lbl = tk.Label(
+                self.stats_box,
+                text=text,
+                font=("Helvetica", 10, "bold"),
+                bg="#263238",
+                fg=color,
+                padx=8,
+                pady=3,
+                relief=tk.FLAT
+            )
+            lbl.pack(side=tk.LEFT, padx=(0, 8))
+            self.stat_labels[key] = lbl
 
-        # 4. Operator Overrule Controls Bar
-        overrule_bar = ttk.LabelFrame(self.root, text="Operator Overrule Controls (Select Image & Press 1-4)", padding=(8, 4))
-        overrule_bar.pack(fill=tk.X, padx=12, pady=4, side=tk.TOP)
+        # 2. View Mode Navigation & Settings Bar
+        nav_bar = ttk.Frame(self.root, padding=(12, 6))
+        nav_bar.pack(fill=tk.X, side=tk.TOP)
 
-        btn_dry = ttk.Button(overrule_bar, text="[1] 🏜️ Dry", command=lambda: self.apply_overrule("Dry"))
-        btn_dry.pack(side=tk.LEFT, padx=3)
+        ttk.Label(nav_bar, text="View Pool:", font=("Helvetica", 9, "bold")).pack(side=tk.LEFT, padx=(0, 6))
 
-        btn_flood = ttk.Button(overrule_bar, text="[2] 💧 Flooded", command=lambda: self.apply_overrule("Flooded"))
-        btn_flood.pack(side=tk.LEFT, padx=3)
+        self.btn_views = {}
+        modes = [
+            ("unsorted", "📥 Unsorted Pool"),
+            ("all_sorted", "📁 All Sorted Dataset"),
+            ("Dry", "🏜️ Dry"),
+            ("Flooded", "💧 Flooded"),
+            ("Planted", "🌿 Planted"),
+            ("Others", "🌳 Others"),
+        ]
+        for m_id, m_text in modes:
+            b = ttk.Button(nav_bar, text=m_text, command=lambda m=m_id: self.switch_view(m))
+            b.pack(side=tk.LEFT, padx=2)
+            self.btn_views[m_id] = b
 
-        btn_plant = ttk.Button(overrule_bar, text="[3] 🌿 Planted", command=lambda: self.apply_overrule("Planted"))
-        btn_plant.pack(side=tk.LEFT, padx=3)
+        ttk.Separator(nav_bar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=2)
 
-        btn_other = ttk.Button(overrule_bar, text="[4] 🌳 Others", command=lambda: self.apply_overrule("Others"))
-        btn_other.pack(side=tk.LEFT, padx=3)
+        chk_advance = ttk.Checkbutton(nav_bar, text="⚡ Auto-Advance on Sort", variable=self.var_auto_advance)
+        chk_advance.pack(side=tk.LEFT, padx=4)
 
-        btn_reset = ttk.Button(overrule_bar, text="[Space] 🔄 Accept / Reset to AI", command=self.reset_to_ai)
-        btn_reset.pack(side=tk.LEFT, padx=(12, 3))
+        chk_ai = ttk.Checkbutton(nav_bar, text="🤖 AI Assist", variable=self.var_ai_assist, command=self._on_toggle_ai_assist)
+        chk_ai.pack(side=tk.LEFT, padx=6)
 
-        # 5. Status Bar at Bottom
-        status_bar = ttk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W, padding=(8, 4))
-        status_bar.pack(fill=tk.X, side=tk.BOTTOM)
+        btn_refresh = ttk.Button(nav_bar, text="🔄 Refresh", command=self.refresh_all_data)
+        btn_refresh.pack(side=tk.RIGHT, padx=2)
 
-        # 6. Footer Action Buttons (Save Reports, Add to Dataset, Open Folder, Export CSV)
+        btn_import = ttk.Button(nav_bar, text="📥 Import to Unsorted...", command=self._on_import_images)
+        btn_import.pack(side=tk.RIGHT, padx=4)
+
+        # 3. Status Bar at Bottom
+        self.lbl_status = ttk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W, padding=(8, 4))
+        self.lbl_status.pack(fill=tk.X, side=tk.BOTTOM)
+
+        # 4. Footer Action Buttons
         footer_frame = ttk.Frame(self.root, padding=(12, 6))
         footer_frame.pack(fill=tk.X, side=tk.BOTTOM)
 
-        btn_save_reports = ttk.Button(footer_frame, text="💾 Save Reviewed Reports", command=self._on_save_reports)
-        btn_save_reports.pack(side=tk.LEFT, padx=3)
+        self.btn_train = ttk.Button(
+            footer_frame,
+            text="🚀 Train AI Model (python train.py)",
+            command=self._on_train_model
+        )
+        self.btn_train.pack(side=tk.LEFT, padx=(0, 6))
 
-        btn_export_dataset = ttk.Button(footer_frame, text="📥 Add Overruled to Dataset", command=self._on_add_overruled_to_dataset)
-        btn_export_dataset.pack(side=tk.LEFT, padx=3)
+        btn_open_unsorted = ttk.Button(footer_frame, text="📂 Open Unsorted Folder", command=self._on_open_unsorted_folder)
+        btn_open_unsorted.pack(side=tk.LEFT, padx=4)
 
-        btn_open_folder = ttk.Button(footer_frame, text="📁 Open Output Folder", command=self._on_open_output_folder)
-        btn_open_folder.pack(side=tk.LEFT, padx=3)
+        btn_open_dataset = ttk.Button(footer_frame, text="📁 Open Dataset Folder", command=self._on_open_dataset_folder)
+        btn_open_dataset.pack(side=tk.LEFT, padx=4)
 
-        btn_csv = ttk.Button(footer_frame, text="📄 Export CSV", command=self._on_export_csv)
-        btn_csv.pack(side=tk.LEFT, padx=3)
+        btn_csv = ttk.Button(footer_frame, text="📄 Export Dataset CSV", command=self._on_export_csv)
+        btn_csv.pack(side=tk.LEFT, padx=4)
 
-        # 7. Main Paned Split View: Left = Treeview Table, Right = Live Image Inspector
+        # 5. Main Center Paned Window: Left = Table, Right = Live Inspector & Tips
         center_pane = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
         center_pane.pack(fill=tk.BOTH, expand=True, padx=12, pady=4)
 
-        # Left Side: Table of images
+        # Left Table Frame
         table_frame = ttk.Frame(center_pane)
         center_pane.add(table_frame, weight=3)
 
-        cols = ("rel_path", "ai_status", "confidence", "final_decision")
+        cols = ("filename", "category", "ai_guess", "gps", "dimensions")
         self.tree = ttk.Treeview(table_frame, columns=cols, show="headings", selectmode="browse")
-        self.tree.heading("rel_path", text="Relative Path")
-        self.tree.heading("ai_status", text="AI Guess")
-        self.tree.heading("confidence", text="Confidence")
-        self.tree.heading("final_decision", text="Final Decision")
+        self.tree.heading("filename", text="Filename")
+        self.tree.heading("category", text="Current Category")
+        self.tree.heading("ai_guess", text="AI Suggestion")
+        self.tree.heading("gps", text="GPS Coordinates")
+        self.tree.heading("dimensions", text="Resolution")
 
-        self.tree.column("rel_path", width=330, anchor="w")
-        self.tree.column("ai_status", width=90, anchor="center")
-        self.tree.column("confidence", width=105, anchor="center")
-        self.tree.column("final_decision", width=140, anchor="center")
+        self.tree.column("filename", width=220, anchor="w")
+        self.tree.column("category", width=120, anchor="center")
+        self.tree.column("ai_guess", width=140, anchor="center")
+        self.tree.column("gps", width=170, anchor="center")
+        self.tree.column("dimensions", width=100, anchor="center")
 
-        # Color tags: Red for low confidence (<80%), amber for overruled
-        self.tree.tag_configure("tag_low_conf", foreground="#d32f2f", font=("Helvetica", 9, "bold"))
-        self.tree.tag_configure("tag_overruled", foreground="#b78103", background="#fff3e0", font=("Helvetica", 9, "bold"))
-        self.tree.tag_configure("tag_normal", foreground="#222222")
+        # Color tags
+        self.tree.tag_configure("tag_unsorted", foreground="#e65100", font=("Helvetica", 9, "bold"))
+        self.tree.tag_configure("tag_dry", foreground="#bf360c")
+        self.tree.tag_configure("tag_flooded", foreground="#0277bd")
+        self.tree.tag_configure("tag_planted", foreground="#2e7d32")
+        self.tree.tag_configure("tag_others", foreground="#455a64")
 
         vsb = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.tree.yview)
         hsb = ttk.Scrollbar(table_frame, orient=tk.HORIZONTAL, command=self.tree.xview)
@@ -214,575 +255,645 @@ class RiceFieldGUI:
 
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
 
-        # Right Side: Live Image Inspection & Breakdown Panel
-        preview_panel = ttk.LabelFrame(center_pane, text="🖼️ Live Image Inspection & Breakdown", padding=10)
-        center_pane.add(preview_panel, weight=2)
+        # Right Inspector Frame
+        inspector_frame = ttk.Frame(center_pane, padding=6)
+        center_pane.add(inspector_frame, weight=2)
 
-        # Image Display Container
-        img_box = tk.Frame(preview_panel, bg="#1e222b", width=360, height=250)
+        # Inspector Canvas / Preview Box
+        preview_group = ttk.LabelFrame(inspector_frame, text="🖼️ Selected Image Preview", padding=8)
+        preview_group.pack(fill=tk.X, side=tk.TOP, pady=(0, 6))
+
+        img_box = tk.Frame(preview_group, bg="#1e222b", width=360, height=240)
         img_box.pack(fill=tk.X, pady=(0, 6))
         img_box.pack_propagate(False)
 
-        self.lbl_preview_img = tk.Label(img_box, bg="#1e222b", text="Select an image to preview", fg="#888888")
+        self.lbl_preview_img = tk.Label(img_box, bg="#1e222b", text="Select an image to inspect", fg="#888888")
         self.lbl_preview_img.pack(expand=True)
 
-        self.lbl_preview_filename = ttk.Label(preview_panel, text="File: --", font=("Helvetica", 9), wraplength=340)
-        self.lbl_preview_filename.pack(anchor="w", pady=(0, 1))
+        self.lbl_preview_name = ttk.Label(preview_group, text="File: --", font=("Helvetica", 9, "bold"), wraplength=340)
+        self.lbl_preview_name.pack(anchor="w", pady=1)
 
-        self.lbl_preview_coords = ttk.Label(preview_panel, text="📍 GPS: --", font=("Helvetica", 9), foreground="#1565c0", wraplength=340)
-        self.lbl_preview_coords.pack(anchor="w", pady=(0, 2))
+        self.lbl_preview_cat = tk.Label(preview_group, text="Category: --", font=("Helvetica", 11, "bold"), bg="#eceff1", fg="#37474f", padx=6, pady=3)
+        self.lbl_preview_cat.pack(fill=tk.X, pady=3)
 
-        # Status & Decision Banner
-        self.lbl_preview_decision = tk.Label(
-            preview_panel, text="--", font=("Helvetica", 14, "bold"),
-            bg="#eceff1", fg="#333333", padx=10, pady=5, relief=tk.GROOVE
+        self.lbl_preview_gps = ttk.Label(preview_group, text="📍 GPS: --", font=("Helvetica", 9), foreground="#1565c0", wraplength=340)
+        self.lbl_preview_gps.pack(anchor="w", pady=1)
+
+        self.lbl_preview_ai = tk.Label(preview_group, text="AI Guess: --", font=("Helvetica", 9), anchor="w")
+        self.lbl_preview_ai.pack(fill=tk.X, pady=1)
+
+        # Fast Move Actions Frame
+        action_group = ttk.LabelFrame(inspector_frame, text="⚡ Quick Sort / Re-assign", padding=8)
+        action_group.pack(fill=tk.X, side=tk.TOP, pady=(0, 6))
+
+        btn_grid = ttk.Frame(action_group)
+        btn_grid.pack(fill=tk.X)
+
+        ttk.Button(btn_grid, text="[1] 🏜️ Dry", command=lambda: self.move_current_to_class("Dry")).grid(row=0, column=0, padx=2, pady=2, sticky="ew")
+        ttk.Button(btn_grid, text="[2] 💧 Flooded", command=lambda: self.move_current_to_class("Flooded")).grid(row=0, column=1, padx=2, pady=2, sticky="ew")
+        ttk.Button(btn_grid, text="[3] 🌿 Planted", command=lambda: self.move_current_to_class("Planted")).grid(row=1, column=0, padx=2, pady=2, sticky="ew")
+        ttk.Button(btn_grid, text="[4] 🌳 Others", command=lambda: self.move_current_to_class("Others")).grid(row=1, column=1, padx=2, pady=2, sticky="ew")
+        btn_grid.columnconfigure(0, weight=1)
+        btn_grid.columnconfigure(1, weight=1)
+
+        ttk.Button(
+            action_group,
+            text="[U] ↩️ Move back to Unsorted",
+            command=self.move_current_to_unsorted
+        ).pack(fill=tk.X, pady=(4, 0))
+
+        # Vertical Tips & Controls Card (Item 5 in user note)
+        tips_group = ttk.LabelFrame(inspector_frame, text="💡 Quick Tips & Controls", padding=8)
+        tips_group.pack(fill=tk.BOTH, expand=True, side=tk.TOP, pady=(2, 0))
+
+        tips_text = (
+            "• Press [1]  ->  Move to Dry\n"
+            "• Press [2]  ->  Move to Flooded\n"
+            "• Press [3]  ->  Move to Planted\n"
+            "• Press [4]  ->  Move to Others\n"
+            "• Press [U]  ->  Move to Unsorted\n"
+            "• Press [Space] -> Accept AI Suggestion\n"
+            "• Press [↑ / ↓] -> Navigate Images\n"
+            "• Press [Del]   -> Delete Image"
         )
-        self.lbl_preview_decision.pack(fill=tk.X, pady=4)
-
-        self.lbl_preview_ai = tk.Label(preview_panel, text="AI Guess: --", font=("Helvetica", 10), anchor="w")
-        self.lbl_preview_ai.pack(fill=tk.X, pady=2)
-
-        # 4-Class Confidence Distribution
-        prob_group = ttk.LabelFrame(preview_panel, text="4-Class Confidence Distribution", padding=8)
-        prob_group.pack(fill=tk.X, pady=(6, 4))
-
-        self.prob_widgets = {}
-        for cname in CLASSES:
-            row = ttk.Frame(prob_group)
-            row.pack(fill=tk.X, pady=2)
-
-            c_rgb = CLASS_COLORS[cname]
-            c_hex = '#{:02x}{:02x}{:02x}'.format(*c_rgb)
-            dot = tk.Canvas(row, width=10, height=10, bg=c_hex, highlightthickness=0)
-            dot.pack(side=tk.LEFT, padx=(0, 5))
-
-            lbl = ttk.Label(row, text=f"{cname:7s}", width=8, font=("Helvetica", 9, "bold"))
-            lbl.pack(side=tk.LEFT)
-
-            pbar = ttk.Progressbar(row, orient=tk.HORIZONTAL, length=110, mode='determinate')
-            pbar.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-
-            val_lbl = ttk.Label(row, text="0.0%", width=6, anchor="e", font=("Helvetica", 9))
-            val_lbl.pack(side=tk.RIGHT)
-
-            self.prob_widgets[cname] = (pbar, val_lbl)
-
-        # Vertical Tips & Shortcuts Card (Item 5 in user note)
-        tips_box = ttk.LabelFrame(preview_panel, text="💡 Tips & Shortcuts", padding=8)
-        tips_box.pack(fill=tk.X, pady=(8, 0))
-
-        tips = [
-            ("• [1] Dry  |  [2] Flooded  |  [3] Planted  |  [4] Others", "#333333"),
-            ("• [Space] Accept AI / Reset Overrule", "#333333"),
-            ("• [↑ / ↓] or [Prev / Next] to navigate through images", "#333333"),
-            ("• ⚠️ Red text marks low confidence (<80%) for review", "#c62828"),
-            ("• ⚡ Auto-Advance jumps to next image on overrule", "#1565c0"),
-            ("• Click 'Add Overruled to Dataset' to continuously train AI", "#2e7d32")
-        ]
-        for tip_text, tip_color in tips:
-            lbl_tip = tk.Label(tips_box, text=tip_text, font=("Helvetica", 8, "bold" if tip_color != "#333333" else "normal"), fg=tip_color, anchor="w")
-            lbl_tip.pack(fill=tk.X, pady=1)
+        lbl_tips = tk.Label(
+            tips_group,
+            text=tips_text,
+            font=("Consolas", 9),
+            justify=tk.LEFT,
+            anchor="nw",
+            bg="#f5f7fa",
+            fg="#263238",
+            padx=8,
+            pady=8,
+            relief=tk.GROOVE
+        )
+        lbl_tips.pack(fill=tk.BOTH, expand=True)
 
     def _bind_shortcuts(self):
-        self.root.bind("1", lambda e: self.apply_overrule("Dry"))
-        self.root.bind("2", lambda e: self.apply_overrule("Flooded"))
-        self.root.bind("3", lambda e: self.apply_overrule("Planted"))
-        self.root.bind("4", lambda e: self.apply_overrule("Others"))
-        self.root.bind("<space>", lambda e: self.reset_to_ai())
+        self.root.bind("<Key-1>", lambda e: self.move_current_to_class("Dry"))
+        self.root.bind("<Key-2>", lambda e: self.move_current_to_class("Flooded"))
+        self.root.bind("<Key-3>", lambda e: self.move_current_to_class("Planted"))
+        self.root.bind("<Key-4>", lambda e: self.move_current_to_class("Others"))
+        self.root.bind("<Key-u>", lambda e: self.move_current_to_unsorted())
+        self.root.bind("<Key-U>", lambda e: self.move_current_to_unsorted())
+        self.root.bind("<space>", lambda e: self._on_accept_ai_guess())
+        self.root.bind("<Delete>", lambda e: self._on_delete_current())
 
-    def _initial_load(self):
-        """Automatically classify and populate Input/ on startup if images exist."""
-        if os.path.exists("Input"):
-            valid_exts = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".webp"}
-            has_images = any(
-                os.path.splitext(f)[1].lower() in valid_exts
-                for _, _, files in os.walk("Input")
-                for f in files
-            )
-            if has_images:
-                self.load_directory("Input", silent=True)
-                return
+    # --------------------------------------------------------------------------
+    # DATA SCANNING & COUNTS
+    # --------------------------------------------------------------------------
+    def refresh_all_data(self):
+        """Scans Unsorted/ and Dataset/ folders, refreshes counts and table."""
+        # 1. Update counts
+        unsorted_files = self._get_image_files(self.unsorted_dir)
+        self.counts["Unsorted"] = len(unsorted_files)
 
-        self.status_var.set("Ready. Open an image or batch classify a folder.")
+        total_sorted = 0
+        for cname, subfolder in CLASS_TO_FOLDER.items():
+            fpath = os.path.join(self.dataset_dir, subfolder)
+            files = self._get_image_files(fpath)
+            self.counts[cname] = len(files)
+            total_sorted += len(files)
 
-    def load_directory(self, directory="Input", silent=False):
-        """Scans and batch classifies all images in directory (and subdirectories)."""
+        self.counts["Total_Sorted"] = total_sorted
+
+        # Update Top Badges
+        self.stat_labels["Unsorted"].config(text=f"📥 Unsorted: {self.counts['Unsorted']}")
+        self.stat_labels["Dry"].config(text=f"🏜️ Dry: {self.counts['Dry']}")
+        self.stat_labels["Flooded"].config(text=f"💧 Flooded: {self.counts['Flooded']}")
+        self.stat_labels["Planted"].config(text=f"🌿 Planted: {self.counts['Planted']}")
+        self.stat_labels["Others"].config(text=f"🌳 Others: {self.counts['Others']}")
+        self.stat_labels["Total_Sorted"].config(text=f"📊 Total Sorted: {self.counts['Total_Sorted']}")
+
+        # 2. Populate table for active view
+        self._load_active_view_items()
+
+    def switch_view(self, mode):
+        self.current_view_mode = mode
+        for m_id, b in self.btn_views.items():
+            if m_id == mode:
+                b.state(["pressed"])
+            else:
+                b.state(["!pressed"])
+        self._load_active_view_items()
+        self.status_var.set(f"Switched view to: {mode.replace('_', ' ').title()}")
+
+    def _get_image_files(self, directory):
         if not os.path.exists(directory):
-            if not silent:
-                messagebox.showerror("Directory Not Found", f"Directory '{directory}' does not exist.")
+            return []
+        files = []
+        for f in sorted(os.listdir(directory)):
+            if os.path.splitext(f)[1].lower() in VALID_EXTENSIONS:
+                files.append(f)
+        return files
+
+    def _load_active_view_items(self):
+        items = []
+
+        if self.current_view_mode == "unsorted":
+            for fname in self._get_image_files(self.unsorted_dir):
+                full_p = os.path.join(self.unsorted_dir, fname)
+                items.append({
+                    "filename": fname,
+                    "full_path": full_p,
+                    "category": "Unsorted",
+                    "folder": self.unsorted_dir
+                })
+        elif self.current_view_mode == "all_sorted":
+            for cname, subfolder in CLASS_TO_FOLDER.items():
+                fdir = os.path.join(self.dataset_dir, subfolder)
+                for fname in self._get_image_files(fdir):
+                    full_p = os.path.join(fdir, fname)
+                    items.append({
+                        "filename": fname,
+                        "full_path": full_p,
+                        "category": cname,
+                        "folder": fdir
+                    })
+        elif self.current_view_mode in CLASS_TO_FOLDER:
+            cname = self.current_view_mode
+            subfolder = CLASS_TO_FOLDER[cname]
+            fdir = os.path.join(self.dataset_dir, subfolder)
+            for fname in self._get_image_files(fdir):
+                full_p = os.path.join(fdir, fname)
+                items.append({
+                    "filename": fname,
+                    "full_path": full_p,
+                    "category": cname,
+                    "folder": fdir
+                })
+
+        self.items_data = items
+        self._populate_treeview()
+
+    def _populate_treeview(self):
+        # Remember previous selection filename if possible
+        prev_filename = self.current_inspected_item["filename"] if self.current_inspected_item else None
+
+        self.tree.delete(*self.tree.get_children())
+        self.item_map.clear()
+
+        select_id = None
+
+        for itm in self.items_data:
+            full_p = itm["full_path"]
+            fname = itm["filename"]
+            cat = itm["category"]
+
+            # AI prediction
+            ai_str = "--"
+            if self.var_ai_assist.get() and self.predictor:
+                try:
+                    pred = self.predictor.predict(full_p)
+                    itm["ai_pred"] = pred
+                    ai_str = f"{pred['status']} ({pred['confidence']*100:.1f}%)"
+                except Exception:
+                    itm["ai_pred"] = None
+            else:
+                itm["ai_pred"] = None
+
+            # GPS
+            gps = extract_image_gps(full_p)
+            itm["gps"] = gps
+            gps_str = f"{gps['latitude']:.4f}°N, {gps['longitude']:.4f}°E" if gps else "--"
+
+            # Image size
+            dim_str = "--"
+            try:
+                with Image.open(full_p) as im:
+                    itm["dimensions"] = im.size
+                    dim_str = f"{im.size[0]}x{im.size[1]}"
+            except Exception:
+                itm["dimensions"] = (0, 0)
+
+            # Row tag
+            tag = "tag_unsorted" if cat == "Unsorted" else f"tag_{cat.lower()}"
+
+            node_id = self.tree.insert("", tk.END, values=(fname, cat, ai_str, gps_str, dim_str), tags=(tag,))
+            self.item_map[node_id] = itm
+
+            if prev_filename and fname == prev_filename:
+                select_id = node_id
+
+        # Select item
+        children = self.tree.get_children()
+        if children:
+            target = select_id if select_id else children[0]
+            self.tree.selection_set(target)
+            self.tree.focus(target)
+            self.tree.see(target)
+            self._update_inspector(self.item_map.get(target))
+        else:
+            self._clear_inspector()
+
+    # --------------------------------------------------------------------------
+    # INSPECTION PANEL
+    # --------------------------------------------------------------------------
+    def _on_tree_select(self, event):
+        selected = self.tree.selection()
+        if selected:
+            itm = self.item_map.get(selected[0])
+            if itm:
+                self._update_inspector(itm)
+
+    def _update_inspector(self, itm):
+        self.current_inspected_item = itm
+        full_p = itm["full_path"]
+
+        if os.path.exists(full_p):
+            try:
+                pil_im = Image.open(full_p).convert("RGB")
+                w, h = pil_im.size
+                scale = min(350 / w, 230 / h, 1.0)
+                nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
+                resized = pil_im.resize((nw, nh), Image.Resampling.BILINEAR)
+                tk_img = ImageTk.PhotoImage(resized)
+                self.preview_photo_ref[0] = tk_img
+                self.lbl_preview_img.config(image=tk_img, text="")
+                self.lbl_preview_name.config(text=f"📁 {itm['filename']} ({w}x{h} px)")
+            except Exception as e:
+                self.lbl_preview_img.config(image="", text=f"Error previewing: {e}")
+        else:
+            self.lbl_preview_img.config(image="", text="File missing")
+
+        # Category pill
+        cat = itm.get("category", "Unsorted")
+        color_rgb = CLASS_COLORS.get(cat, (120, 120, 120)) if cat != "Unsorted" else (230, 81, 0)
+        hex_bg = '#{:02x}{:02x}{:02x}'.format(*color_rgb)
+        fg_col = "#ffffff" if cat in ["Flooded", "Others", "Unsorted"] else "#111111"
+        self.lbl_preview_cat.config(text=f"Category: {cat.upper()}", bg=hex_bg, fg=fg_col)
+
+        # GPS
+        gps = itm.get("gps")
+        if gps:
+            alt_txt = f" | Alt: {gps['altitude']}m" if gps.get("altitude") is not None else ""
+            self.lbl_preview_gps.config(text=f"📍 GPS: {gps['latitude']:.4f}° N, {gps['longitude']:.4f}° E{alt_txt}")
+        else:
+            self.lbl_preview_gps.config(text="📍 GPS: No coordinates in metadata")
+
+        # AI Guess
+        ai_pred = itm.get("ai_pred")
+        if ai_pred:
+            conf_pct = ai_pred["confidence"] * 100.0
+            is_low = conf_pct < 80.0
+            col = "#d32f2f" if is_low else "#2e7d32"
+            badge = "⚠️ [Low <80%]" if is_low else "✅ [High]"
+            self.lbl_preview_ai.config(
+                text=f"AI Suggests: {ai_pred['status']} ({conf_pct:.1f}%) {badge}",
+                fg=col,
+                font=("Helvetica", 9, "bold")
+            )
+        else:
+            self.lbl_preview_ai.config(text="AI Suggests: --", fg="#555555", font=("Helvetica", 9))
+
+    def _clear_inspector(self):
+        self.current_inspected_item = None
+        self.lbl_preview_img.config(image="", text="No images in current view")
+        self.lbl_preview_name.config(text="File: --")
+        self.lbl_preview_cat.config(text="Category: --", bg="#eceff1", fg="#37474f")
+        self.lbl_preview_gps.config(text="📍 GPS: --")
+        self.lbl_preview_ai.config(text="AI Suggests: --")
+
+    # --------------------------------------------------------------------------
+    # FAST FILE SORTING / MOVING OPERATIONS
+    # --------------------------------------------------------------------------
+    def move_current_to_class(self, target_class):
+        """Moves the currently selected image to Dataset/<target_class>/."""
+        if not self.current_inspected_item:
             return
 
-        self.status_var.set(f"Scanning & classifying all images in '{directory}'...")
-        self.root.update_idletasks()
+        itm = self.current_inspected_item
+        src_path = itm["full_path"]
+        if not os.path.exists(src_path):
+            messagebox.showerror("File Error", f"Source file not found:\n{src_path}")
+            return
+
+        subfolder = CLASS_TO_FOLDER.get(target_class)
+        dest_dir = os.path.join(self.dataset_dir, subfolder)
+        os.makedirs(dest_dir, exist_ok=True)
+
+        dest_path = self._generate_unique_dest(dest_dir, itm["filename"])
 
         try:
-            batch_res = self.predictor.predict_directory(input_dir=directory, recursive=True, output_dir="Output")
-            self.current_batch = batch_res
-            self._update_header_texts()
-            self._populate_table()
+            shutil.move(src_path, dest_path)
+            new_fname = os.path.basename(dest_path)
+            prev_cat = itm["category"]
 
-            total = batch_res["total_images"]
-            self.status_var.set(f"Loaded {total} image(s) from '{directory}'. JSON reports generated in 'Output/'.")
+            self.status_var.set(f"Moved '{itm['filename']}' -> {target_class} ({subfolder}/)")
+
+            # If currently viewing a specific category that no longer matches, remove row and advance
+            self._handle_post_move(itm, target_class, dest_path, new_fname)
         except Exception as e:
-            if not silent:
-                messagebox.showerror("Classification Error", str(e))
-            self.status_var.set(f"Error scanning '{directory}': {e}")
+            messagebox.showerror("Move Error", f"Could not move image: {e}")
 
-    def _on_open_images(self):
-        """Selects one or more images from file dialog and loads them into the review table."""
+    def move_current_to_unsorted(self):
+        """Moves the currently selected image back to Unsorted/."""
+        if not self.current_inspected_item:
+            return
+
+        itm = self.current_inspected_item
+        src_path = itm["full_path"]
+        if not os.path.exists(src_path):
+            messagebox.showerror("File Error", f"Source file not found:\n{src_path}")
+            return
+
+        if itm["category"] == "Unsorted":
+            self.status_var.set(f"'{itm['filename']}' is already in Unsorted pool.")
+            return
+
+        dest_path = self._generate_unique_dest(self.unsorted_dir, itm["filename"])
+
+        try:
+            shutil.move(src_path, dest_path)
+            new_fname = os.path.basename(dest_path)
+            self.status_var.set(f"Returned '{itm['filename']}' -> Unsorted pool")
+            self._handle_post_move(itm, "Unsorted", dest_path, new_fname)
+        except Exception as e:
+            messagebox.showerror("Move Error", f"Could not return image to unsorted: {e}")
+
+    def _generate_unique_dest(self, dest_dir, filename):
+        dest_path = os.path.join(dest_dir, filename)
+        if not os.path.exists(dest_path):
+            return dest_path
+
+        base, ext = os.path.splitext(filename)
+        counter = 1
+        while os.path.exists(dest_path):
+            dest_path = os.path.join(dest_dir, f"{base}_{counter}{ext}")
+            counter += 1
+        return dest_path
+
+    def _handle_post_move(self, itm, new_cat, new_path, new_fname):
+        old_cat = itm["category"]
+
+        # Update counts
+        if old_cat == "Unsorted":
+            self.counts["Unsorted"] = max(0, self.counts["Unsorted"] - 1)
+        else:
+            self.counts[old_cat] = max(0, self.counts[old_cat] - 1)
+            self.counts["Total_Sorted"] = max(0, self.counts["Total_Sorted"] - 1)
+
+        if new_cat == "Unsorted":
+            self.counts["Unsorted"] += 1
+        else:
+            self.counts[new_cat] += 1
+            self.counts["Total_Sorted"] += 1
+
+        # Update badge labels
+        self.stat_labels["Unsorted"].config(text=f"📥 Unsorted: {self.counts['Unsorted']}")
+        self.stat_labels["Dry"].config(text=f"🏜️ Dry: {self.counts['Dry']}")
+        self.stat_labels["Flooded"].config(text=f"💧 Flooded: {self.counts['Flooded']}")
+        self.stat_labels["Planted"].config(text=f"🌿 Planted: {self.counts['Planted']}")
+        self.stat_labels["Others"].config(text=f"🌳 Others: {self.counts['Others']}")
+        self.stat_labels["Total_Sorted"].config(text=f"📊 Total Sorted: {self.counts['Total_Sorted']}")
+
+        # Advance or remove row
+        selected = self.tree.selection()
+        if not selected:
+            return
+        curr_node = selected[0]
+
+        should_remove_row = False
+        if self.current_view_mode == "unsorted" and new_cat != "Unsorted":
+            should_remove_row = True
+        elif self.current_view_mode in CLASS_TO_FOLDER and new_cat != self.current_view_mode:
+            should_remove_row = True
+
+        if should_remove_row:
+            next_node = self.tree.next(curr_node) or self.tree.prev(curr_node)
+            self.tree.delete(curr_node)
+            if curr_node in self.item_map:
+                del self.item_map[curr_node]
+
+            if next_node and self.tree.exists(next_node):
+                self.tree.selection_set(next_node)
+                self.tree.focus(next_node)
+                self.tree.see(next_node)
+                self._update_inspector(self.item_map.get(next_node))
+            else:
+                # If tree is empty
+                children = self.tree.get_children()
+                if children:
+                    self.tree.selection_set(children[0])
+                    self.tree.focus(children[0])
+                    self.tree.see(children[0])
+                    self._update_inspector(self.item_map.get(children[0]))
+                else:
+                    self._clear_inspector()
+        else:
+            # Row remains in current view (e.g. All Sorted view) -> update row text and tag
+            itm["category"] = new_cat
+            itm["full_path"] = new_path
+            itm["filename"] = new_fname
+            tag = "tag_unsorted" if new_cat == "Unsorted" else f"tag_{new_cat.lower()}"
+
+            values = list(self.tree.item(curr_node, "values"))
+            values[0] = new_fname
+            values[1] = new_cat
+            self.tree.item(curr_node, values=values, tags=(tag,))
+            self._update_inspector(itm)
+
+            if self.var_auto_advance.get():
+                next_node = self.tree.next(curr_node)
+                if next_node:
+                    self.tree.selection_set(next_node)
+                    self.tree.focus(next_node)
+                    self.tree.see(next_node)
+                    self._update_inspector(self.item_map.get(next_node))
+
+    def _on_accept_ai_guess(self):
+        """Accepts AI prediction and moves image to that class."""
+        if not self.current_inspected_item:
+            return
+        ai_pred = self.current_inspected_item.get("ai_pred")
+        if ai_pred and ai_pred.get("status") in CLASS_TO_FOLDER:
+            self.move_current_to_class(ai_pred["status"])
+        else:
+            self.status_var.set("No valid AI suggestion available for this image.")
+
+    def _on_delete_current(self):
+        """Deletes the current image file with confirmation."""
+        if not self.current_inspected_item:
+            return
+        itm = self.current_inspected_item
+        fname = itm["filename"]
+        if messagebox.askyesno("Confirm Delete", f"Are you sure you want to permanently delete:\n{fname}?"):
+            try:
+                os.remove(itm["full_path"])
+                self.status_var.set(f"Deleted image: {fname}")
+                self.refresh_all_data()
+            except Exception as e:
+                messagebox.showerror("Delete Error", str(e))
+
+    def _on_toggle_ai_assist(self):
+        if self.var_ai_assist.get() and not self.predictor:
+            self._init_predictor()
+        self.refresh_all_data()
+
+    # --------------------------------------------------------------------------
+    # IMPORT IMAGES INTO UNSORTED POOL
+    # --------------------------------------------------------------------------
+    def _on_import_images(self):
         files = filedialog.askopenfilenames(
-            title="Select Rice Field Image(s)",
-            filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.webp"), ("All Files", "*.*")]
+            title="Select Images to Import into Unsorted Pool",
+            filetypes=[("Image Files", "*.jpg;*.jpeg;*.png;*.bmp;*.webp;*.tif;*.tiff"), ("All Files", "*.*")]
         )
         if not files:
             return
 
-        self.status_var.set(f"Classifying {len(files)} image(s)...")
-        self.root.update_idletasks()
-
-        new_results = []
-        summary_counts = {c: 0 for c in CLASSES}
-
-        for fpath in files:
+        imported_count = 0
+        for f in files:
+            fname = os.path.basename(f)
+            dest = self._generate_unique_dest(self.unsorted_dir, fname)
             try:
-                pred = self.predictor.predict(fpath)
-                fname = os.path.basename(fpath)
-                conf = pred["confidence"]
-                item = {
-                    "filename": fname,
-                    "relative_path": fname,
-                    "relative_directory": ".",
-                    "full_path": os.path.abspath(fpath),
-                    "ai_status": pred["status"],
-                    "status": pred["status"],
-                    "confidence": conf,
-                    "needs_review": bool(conf < 0.80),
-                    "is_overruled": False,
-                    "operator_label": None,
-                    "reviewed_at": None,
-                    "probabilities": pred["probabilities"]
-                }
-                new_results.append(item)
-                summary_counts[pred["status"]] += 1
+                shutil.copy2(f, dest)
+                imported_count += 1
             except Exception as e:
-                print(f"[!] Error classifying '{fpath}': {e}")
+                print(f"[!] Warning copying {f}: {e}")
 
-        if not new_results:
-            messagebox.showerror("Error", "Could not classify any of the selected images.")
+        self.status_var.set(f"Imported {imported_count} new image(s) into 'Unsorted/'.")
+        messagebox.showinfo("Import Complete", f"Successfully imported {imported_count} image(s) into Unsorted pool!")
+        self.switch_view("unsorted")
+        self.refresh_all_data()
+
+    # --------------------------------------------------------------------------
+    # BACKGROUND MODEL TRAINING
+    # --------------------------------------------------------------------------
+    def _on_train_model(self):
+        if self.is_training:
+            messagebox.showinfo("Training Running", "Model training is already running in the background!")
             return
 
-        self.current_batch = {
-            "total_images": len(new_results),
-            "directory": os.path.dirname(files[0]),
-            "output_directory": os.path.abspath("Output"),
-            "summary_counts": summary_counts,
-            "overruled_count": 0,
-            "needs_review_count": sum(1 for i in new_results if i["needs_review"]),
-            "results": new_results,
-            "subdirectories": ["."],
-            "generated_json_files": []
-        }
-
-        self._update_header_texts()
-        self._populate_table()
-        self.status_var.set(f"Loaded and classified {len(new_results)} image(s).")
-
-    def _on_open_custom_folder(self):
-        folder = filedialog.askdirectory(title="Select Folder to Batch Classify")
-        if folder:
-            self.load_directory(folder)
-
-    def _update_header_texts(self):
-        summary = self.current_batch.get("summary_counts", {c: 0 for c in CLASSES})
-        s_str = f"Total Images: {self.current_batch.get('total_images', 0)}   |   " + "   |   ".join(
-            [f"{c}: {summary.get(c, 0)}" for c in CLASSES]
-        )
-        self.summary_var.set(s_str)
-
-        results = self.current_batch.get("results", [])
-        overruled = sum(1 for item in results if item.get("is_overruled"))
-        needs_rev = sum(1 for item in results if item.get("needs_review") and not item.get("is_overruled"))
-        self.current_batch["overruled_count"] = overruled
-        self.current_batch["needs_review_count"] = needs_rev
-        r_str = f"⚠️ Low Confidence (<80%): {needs_rev}   |   ✏️ Overruled by Operator: {overruled}"
-        self.review_stat_var.set(r_str)
-
-    def _populate_table(self):
-        self.tree.delete(*self.tree.get_children())
-        self.item_map.clear()
-
-        only_low = self.var_filter_low_conf.get()
-        only_over = self.var_filter_overruled.get()
-
-        first_id = None
-        results = self.current_batch.get("results", [])
-
-        for item in results:
-            is_low = item.get("needs_review", False)
-            is_over = item.get("is_overruled", False)
-
-            if only_low and not is_low:
-                continue
-            if only_over and not is_over:
-                continue
-
-            conf_val = item["confidence"] * 100.0
-            conf_str = f"{conf_val:.1f}%" + (" ⚠️" if is_low else " ✅")
-
-            if is_over:
-                decision_str = f"✏️ {item['status']} [OVERRULED]"
-                row_tag = "tag_overruled"
-            elif is_low:
-                decision_str = item["status"]
-                row_tag = "tag_low_conf"  # Red text for < 80% confidence
-            else:
-                decision_str = item["status"]
-                row_tag = "tag_normal"
-
-            item_id = self.tree.insert(
-                "",
-                tk.END,
-                values=(item["relative_path"], item["ai_status"], conf_str, decision_str),
-                tags=(row_tag,)
-            )
-            self.item_map[item_id] = item
-            if first_id is None:
-                first_id = item_id
-
-        if first_id:
-            self.tree.selection_set(first_id)
-            self.tree.focus(first_id)
-            self.tree.see(first_id)
-            self._update_inspector(self.item_map[first_id])
-        else:
-            self._clear_inspector()
-
-    def _on_tree_select(self, event=None):
-        selected = self.tree.selection()
-        if selected:
-            res_item = self.item_map.get(selected[0])
-            if res_item:
-                self._update_inspector(res_item)
-
-    def _update_inspector(self, res_item):
-        if not res_item:
-            self._clear_inspector()
-            return
-
-        self.current_inspected_item = res_item
-        full_path = res_item.get("full_path")
-
-        if full_path and os.path.exists(full_path):
-            try:
-                pil_im = Image.open(full_path).convert("RGB")
-                w, h = pil_im.size
-                max_w, max_h = 350, 240
-                scale = min(max_w / w, max_h / h, 1.0)
-                new_w, new_h = max(1, int(w * scale)), max(1, int(h * scale))
-                resized = pil_im.resize((new_w, new_h), Image.Resampling.BILINEAR)
-                tk_img = ImageTk.PhotoImage(resized)
-                self.preview_photo_ref[0] = tk_img
-                self.lbl_preview_img.config(image=tk_img, text="")
-                self.lbl_preview_filename.config(text=f"📁 {res_item['relative_path']} ({w}x{h} px)")
-            except Exception as err:
-                self.lbl_preview_img.config(image="", text=f"Error loading: {err}")
-        else:
-            self.lbl_preview_img.config(image="", text="File not found")
-
-        gps = res_item.get("gps")
-        if gps is None and full_path and os.path.exists(full_path):
-            from src.inference import extract_image_gps
-            gps = extract_image_gps(full_path)
-            res_item["gps"] = gps
-
-        if gps and gps.get("latitude") is not None:
-            alt_txt = f" | Alt: {gps['altitude']}m" if gps.get("altitude") is not None else ""
-            self.lbl_preview_coords.config(text=f"📍 GPS: {gps['latitude']:.4f}° N, {gps['longitude']:.4f}° E{alt_txt}")
-        else:
-            self.lbl_preview_coords.config(text="📍 GPS: No coordinates in metadata")
-
-        status = res_item["status"]
-        color_rgb = CLASS_COLORS.get(status, (100, 100, 100))
-        color_hex = '#{:02x}{:02x}{:02x}'.format(*color_rgb)
-        fg_color = "#ffffff" if status in ["Flooded", "Others"] else "#111111"
-
-        is_over = res_item.get("is_overruled", False)
-        tag_text = f"✏️ {status.upper()} [OVERRULED]" if is_over else status.upper()
-        self.lbl_preview_decision.config(text=tag_text, bg=color_hex, fg=fg_color)
-
-        ai_st = res_item.get("ai_status", status)
-        conf_val = res_item["confidence"] * 100.0
-        is_low = res_item.get("needs_review")
-
-        # Highlight low confidence in red (Item 3 in user note)
-        if is_low:
-            self.lbl_preview_ai.config(
-                text=f"AI Guess: {ai_st} ({conf_val:.1f}%) ⚠️ [Low Confidence (<80%)]",
-                fg="#d32f2f",
-                font=("Helvetica", 10, "bold")
-            )
-        else:
-            self.lbl_preview_ai.config(
-                text=f"AI Guess: {ai_st} ({conf_val:.1f}%) ✅ [High Confidence]",
-                fg="#2e7d32",
-                font=("Helvetica", 10, "bold")
-            )
-
-        probs = res_item.get("probabilities", {})
-        for cname in CLASSES:
-            p_val = probs.get(cname, 0.0)
-            if cname in self.prob_widgets:
-                pbar, val_lbl = self.prob_widgets[cname]
-                pbar["value"] = p_val * 100.0
-                val_lbl.config(text=f"{p_val*100:.1f}%")
-
-    def _clear_inspector(self):
-        self.current_inspected_item = None
-        self.lbl_preview_img.config(image="", text="No image selected")
-        self.lbl_preview_filename.config(text="File: --")
-        self.lbl_preview_decision.config(text="--", bg="#eceff1", fg="#333333")
-        self.lbl_preview_ai.config(text="AI Guess: --", fg="#333333", font=("Helvetica", 10))
-        for cname in CLASSES:
-            if cname in self.prob_widgets:
-                pbar, val_lbl = self.prob_widgets[cname]
-                pbar["value"] = 0.0
-                val_lbl.config(text="0.0%")
-
-    def apply_overrule(self, new_class):
-        """Overrules the selected image's classification to new_class."""
-        selected = self.tree.selection()
-        if not selected:
-            messagebox.showinfo("No Selection", "Please select an image row from the table first.")
-            return
-
-        res_item = self.item_map.get(selected[0])
-        if not res_item:
-            return
-
-        res_item["is_overruled"] = True
-        res_item["operator_label"] = new_class
-        res_item["status"] = new_class
-        res_item["reviewed_at"] = datetime.now().isoformat()
-
-        conf_val = res_item["confidence"] * 100.0
-        conf_str = f"{conf_val:.1f}%" + (" ⚠️" if res_item.get("needs_review") else " ✅")
-        decision_str = f"✏️ {new_class} [OVERRULED]"
-
-        self.tree.item(selected[0], values=(res_item["relative_path"], res_item["ai_status"], conf_str, decision_str), tags=("tag_overruled",))
-
-        # Update batch summary counts
-        summary = {c: 0 for c in CLASSES}
-        for itm in self.current_batch.get("results", []):
-            st = itm.get("status")
-            if st in summary:
-                summary[st] += 1
-        self.current_batch["summary_counts"] = summary
-
-        self._update_header_texts()
-        self._update_inspector(res_item)
-        self.status_var.set(f"Overruled '{res_item['filename']}' -> {new_class}")
-
-        self._advance_to_next()
-
-    def reset_to_ai(self):
-        """Resets the selected image's decision back to the original AI prediction."""
-        selected = self.tree.selection()
-        if not selected:
-            return
-
-        res_item = self.item_map.get(selected[0])
-        if not res_item:
-            return
-
-        res_item["is_overruled"] = False
-        res_item["operator_label"] = None
-        res_item["status"] = res_item["ai_status"]
-        res_item["reviewed_at"] = None
-
-        conf_val = res_item["confidence"] * 100.0
-        is_low = res_item.get("needs_review", False)
-        conf_str = f"{conf_val:.1f}%" + (" ⚠️" if is_low else " ✅")
-        row_tag = "tag_low_conf" if is_low else "tag_normal"
-
-        self.tree.item(selected[0], values=(res_item["relative_path"], res_item["ai_status"], conf_str, res_item["status"]), tags=(row_tag,))
-
-        # Update batch summary counts
-        summary = {c: 0 for c in CLASSES}
-        for itm in self.current_batch.get("results", []):
-            st = itm.get("status")
-            if st in summary:
-                summary[st] += 1
-        self.current_batch["summary_counts"] = summary
-
-        self._update_header_texts()
-        self._update_inspector(res_item)
-        self.status_var.set(f"Reset '{res_item['filename']}' -> AI: {res_item['ai_status']}")
-
-        self._advance_to_next()
-
-    def _advance_to_next(self):
-        if not self.var_auto_advance.get():
-            return
-        selected = self.tree.selection()
-        if selected:
-            next_id = self.tree.next(selected[0])
-            if next_id:
-                self.tree.selection_set(next_id)
-                self.tree.focus(next_id)
-                self.tree.see(next_id)
-                res_item = self.item_map.get(next_id)
-                if res_item:
-                    self._update_inspector(res_item)
-
-    def _on_prev_image(self):
-        selected = self.tree.selection()
-        if selected:
-            prev_id = self.tree.prev(selected[0])
-            if prev_id:
-                self.tree.selection_set(prev_id)
-                self.tree.focus(prev_id)
-                self.tree.see(prev_id)
-                res_item = self.item_map.get(prev_id)
-                if res_item:
-                    self._update_inspector(res_item)
-        else:
-            children = self.tree.get_children()
-            if children:
-                self.tree.selection_set(children[0])
-                self.tree.focus(children[0])
-                self.tree.see(children[0])
-                self._update_inspector(self.item_map.get(children[0]))
-
-    def _on_next_image(self):
-        selected = self.tree.selection()
-        if selected:
-            next_id = self.tree.next(selected[0])
-            if next_id:
-                self.tree.selection_set(next_id)
-                self.tree.focus(next_id)
-                self.tree.see(next_id)
-                res_item = self.item_map.get(next_id)
-                if res_item:
-                    self._update_inspector(res_item)
-        else:
-            children = self.tree.get_children()
-            if children:
-                self.tree.selection_set(children[0])
-                self.tree.focus(children[0])
-                self.tree.see(children[0])
-                self._update_inspector(self.item_map.get(children[0]))
-
-    def _on_save_current_image(self):
-        if not self.current_inspected_item:
-            messagebox.showinfo("No Image Selected", "Please select an image in the table to save.")
-            return
-        fpath = self.current_inspected_item.get("full_path")
-        if not fpath or not os.path.exists(fpath):
-            messagebox.showerror("Error", "Original image file could not be found.")
-            return
-
-        dest = filedialog.asksaveasfilename(
-            defaultextension=os.path.splitext(fpath)[1],
-            filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.bmp;*.webp"), ("All Files", "*.*")],
-            initialfile=self.current_inspected_item["filename"],
-            title="Save Inspected Image"
-        )
-        if dest:
-            try:
-                shutil.copy2(fpath, dest)
-                self.status_var.set(f"Saved image copy to: {dest}")
-                messagebox.showinfo("Saved", f"Image saved successfully to:\n{dest}")
-            except Exception as e:
-                messagebox.showerror("Save Error", str(e))
-
-    def _on_save_reports(self):
-        if not self.current_batch or not self.current_batch.get("results"):
-            messagebox.showinfo("No Data", "No classification results to save.")
-            return
-        try:
-            saved = save_reviewed_batch(self.current_batch, output_dir="Output")
-            self.status_var.set(f"Updated {len(saved)} report(s) in 'Output/'.")
-            messagebox.showinfo("Saved", "Successfully updated all JSON reports in 'Output/' with operator review decisions!")
-        except Exception as e:
-            messagebox.showerror("Save Error", str(e))
-
-    def _on_add_overruled_to_dataset(self):
-        if not self.current_batch or not self.current_batch.get("results"):
-            messagebox.showinfo("No Images", "No images currently loaded.")
-            return
-
-        overruled_items = [itm for itm in self.current_batch["results"] if itm.get("is_overruled")]
-        if not overruled_items:
-            messagebox.showinfo("No Overruled Images", "No images have been overruled yet.\nSelect rows and overrule them with [1-4] first.")
-            return
-
-        count = len(overruled_items)
-        msg = f"Add {count} overruled image(s) to 'Dataset/' for retraining?\n\nThis will copy corrected photos into Dataset/ so the AI learns from your corrections next time you run 'python train.py'."
-        if messagebox.askyesno("Confirm Export to Dataset", msg):
-            try:
-                copied = export_overruled_to_dataset(overruled_items, dataset_dir="Dataset")
-                self.status_var.set(f"Copied {len(copied)} image(s) into 'Dataset/'.")
-                messagebox.showinfo(
-                    "Dataset Retraining Ready",
-                    f"Successfully copied {len(copied)} image(s) into 'Dataset/'!\n\nRun 'python train.py' whenever you're ready to train the AI on these corrections."
+        # Check that we have images in each class
+        for cname, folder in CLASS_TO_FOLDER.items():
+            if self.counts[cname] == 0:
+                messagebox.showwarning(
+                    "Missing Class Data",
+                    f"Class '{cname}' currently has 0 images!\nPlease sort at least a few images into '{cname}' before training."
                 )
-            except Exception as e:
-                messagebox.showerror("Export Error", str(e))
+                return
 
-    def _on_open_output_folder(self):
-        out_p = os.path.abspath("Output")
-        os.makedirs(out_p, exist_ok=True)
+        msg = (
+            f"Start retraining the Rice Field AI Neural Network now?\n\n"
+            f"Current Dataset Samples:\n"
+            f"  - Dry: {self.counts['Dry']}\n"
+            f"  - Flooded: {self.counts['Flooded']}\n"
+            f"  - Planted: {self.counts['Planted']}\n"
+            f"  - Others: {self.counts['Others']}\n"
+            f"  Total: {self.counts['Total_Sorted']}\n\n"
+            f"Training runs in the background. You can continue sorting while it trains."
+        )
+
+        if not messagebox.askyesno("Confirm Training", msg):
+            return
+
+        self.is_training = True
+        self.btn_train.config(text="⏳ Training in Progress...", state=tk.DISABLED)
+        self.status_var.set("Training started: epochs=12, batch_size=16... please wait.")
+
+        threading.Thread(target=self._run_training_worker, daemon=True).start()
+
+    def _run_training_worker(self):
+        try:
+            train_classifier(
+                dataset_dir=self.dataset_dir,
+                epochs=12,
+                batch_size=16,
+                learning_rate=1e-3,
+                save_path="rice_field_classifier.pth"
+            )
+            self.root.after(0, self._on_training_finished, True, "Successfully trained and updated 'rice_field_classifier.pth'!")
+        except Exception as e:
+            self.root.after(0, self._on_training_finished, False, str(e))
+
+    def _on_training_finished(self, success, msg):
+        self.is_training = False
+        self.btn_train.config(text="🚀 Train AI Model (python train.py)", state=tk.NORMAL)
+
+        if success:
+            self.status_var.set("Training finished successfully! Model weights updated.")
+            messagebox.showinfo("Training Completed", f"🎉 AI Training Complete!\n\n{msg}")
+            # Reload predictor
+            self._init_predictor()
+            self.refresh_all_data()
+        else:
+            self.status_var.set(f"Training failed: {msg}")
+            messagebox.showerror("Training Error", f"Training encountered an error:\n{msg}")
+
+    # --------------------------------------------------------------------------
+    # FOLDER LAUNCHERS & CSV EXPORT
+    # --------------------------------------------------------------------------
+    def _on_open_unsorted_folder(self):
+        self._open_in_explorer(self.unsorted_dir)
+
+    def _on_open_dataset_folder(self):
+        self._open_in_explorer(self.dataset_dir)
+
+    def _open_in_explorer(self, folder_path):
+        os.makedirs(folder_path, exist_ok=True)
         if hasattr(os, "startfile"):
-            os.startfile(out_p)
+            os.startfile(folder_path)
         else:
             import subprocess
-            subprocess.Popen(["explorer", out_p])
+            subprocess.Popen(["explorer", folder_path])
 
     def _on_export_csv(self):
-        if not self.current_batch or not self.current_batch.get("results"):
-            messagebox.showinfo("No Data", "No results to export.")
+        dest = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV Files", "*.csv"), ("All Files", "*.*")],
+            initialfile="dataset_curation_summary.csv",
+            title="Export Dataset Curation CSV"
+        )
+        if not dest:
             return
 
-        fpath = filedialog.asksaveasfilename(
-            defaultextension=".csv",
-            filetypes=[("CSV File", "*.csv")],
-            initialfile="classification_results.csv",
-            title="Export Results to CSV"
-        )
-        if fpath:
-            try:
-                with open(fpath, "w", newline="", encoding="utf-8") as cf:
-                    writer = csv.writer(cf)
-                    header = [
-                        "filename", "relative_path", "subdirectory",
-                        "ai_status", "final_decision", "confidence",
-                        "needs_review", "is_overruled", "operator_label"
-                    ] + [f"prob_{c}" for c in CLASSES]
-                    writer.writerow(header)
+        try:
+            rows = []
+            # Gather all sorted images
+            for cname, folder in CLASS_TO_FOLDER.items():
+                fdir = os.path.join(self.dataset_dir, folder)
+                for f in self._get_image_files(fdir):
+                    full_p = os.path.join(fdir, f)
+                    gps = extract_image_gps(full_p) or {}
+                    rows.append({
+                        "pool": "Sorted",
+                        "category": cname,
+                        "filename": f,
+                        "full_path": full_p,
+                        "latitude": gps.get("latitude", ""),
+                        "longitude": gps.get("longitude", ""),
+                        "altitude": gps.get("altitude", ""),
+                    })
 
-                    for item in self.current_batch["results"]:
-                        row = [
-                            item["filename"],
-                            item["relative_path"],
-                            item.get("relative_directory", "."),
-                            item.get("ai_status", item["status"]),
-                            item["status"],
-                            f"{item['confidence']*100:.2f}%",
-                            item.get("needs_review", False),
-                            item.get("is_overruled", False),
-                            item.get("operator_label") or ""
-                        ] + [f"{item.get('probabilities', {}).get(c, 0.0)*100:.2f}%" for c in CLASSES]
-                        writer.writerow(row)
+            # Gather unsorted
+            for f in self._get_image_files(self.unsorted_dir):
+                full_p = os.path.join(self.unsorted_dir, f)
+                gps = extract_image_gps(full_p) or {}
+                rows.append({
+                    "pool": "Unsorted",
+                    "category": "Unsorted",
+                    "filename": f,
+                    "full_path": full_p,
+                    "latitude": gps.get("latitude", ""),
+                    "longitude": gps.get("longitude", ""),
+                    "altitude": gps.get("altitude", ""),
+                })
 
-                self.status_var.set(f"Exported CSV report to: {fpath}")
-                messagebox.showinfo("Exported", f"Successfully exported to:\n{fpath}")
-            except Exception as e:
-                messagebox.showerror("Export Error", str(e))
+            with open(dest, "w", newline="", encoding="utf-8") as cf:
+                writer = csv.DictWriter(cf, fieldnames=["pool", "category", "filename", "full_path", "latitude", "longitude", "altitude"])
+                writer.writeheader()
+                writer.writerows(rows)
+
+            self.status_var.set(f"Exported {len(rows)} image record(s) to: {dest}")
+            messagebox.showinfo("Export Successful", f"Exported dataset summary ({len(rows)} records) to:\n{dest}")
+        except Exception as e:
+            messagebox.showerror("Export Error", str(e))
 
 
 def main():
     root = tk.Tk()
-    app = RiceFieldGUI(root, model_path="rice_field_classifier.pth")
+    app = DatasetCuratorApp(root)
     root.mainloop()
 
 
