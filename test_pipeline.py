@@ -119,15 +119,16 @@ class TestRiceFieldClassifier(unittest.TestCase):
         temp_out_dir = os.path.join("Output", "_test_reviewed_out")
         os.makedirs(temp_out_dir, exist_ok=True)
 
-        sample_img_path = "Dataset/Dry/dry_01.png"
+        sample_img_path = "Dataset/Dry/dry_01.jpg" if os.path.exists("Dataset/Dry/dry_01.jpg") else "Dataset/Dry/dry_01.png"
         if not os.path.exists(sample_img_path):
             return
 
+        sample_name = os.path.basename(sample_img_path)
         try:
             # Fake a batch result with 1 overruled item
             fake_item = {
-                "filename": "dry_01.png",
-                "relative_path": "dry_01.png",
+                "filename": sample_name,
+                "relative_path": sample_name,
                 "relative_directory": ".",
                 "full_path": os.path.abspath(sample_img_path),
                 "ai_status": "Dry",

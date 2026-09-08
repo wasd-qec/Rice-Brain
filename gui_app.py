@@ -227,7 +227,10 @@ class RiceFieldGUI:
         self.lbl_preview_img.pack(expand=True)
 
         self.lbl_preview_filename = ttk.Label(preview_panel, text="File: --", font=("Helvetica", 9), wraplength=340)
-        self.lbl_preview_filename.pack(anchor="w", pady=(0, 2))
+        self.lbl_preview_filename.pack(anchor="w", pady=(0, 1))
+
+        self.lbl_preview_coords = ttk.Label(preview_panel, text="📍 GPS: --", font=("Helvetica", 9), foreground="#1565c0", wraplength=340)
+        self.lbl_preview_coords.pack(anchor="w", pady=(0, 2))
 
         # Status & Decision Banner
         self.lbl_preview_decision = tk.Label(
@@ -485,6 +488,18 @@ class RiceFieldGUI:
                 self.lbl_preview_img.config(image="", text=f"Error loading: {err}")
         else:
             self.lbl_preview_img.config(image="", text="File not found")
+
+        gps = res_item.get("gps")
+        if gps is None and full_path and os.path.exists(full_path):
+            from src.inference import extract_image_gps
+            gps = extract_image_gps(full_path)
+            res_item["gps"] = gps
+
+        if gps and gps.get("latitude") is not None:
+            alt_txt = f" | Alt: {gps['altitude']}m" if gps.get("altitude") is not None else ""
+            self.lbl_preview_coords.config(text=f"📍 GPS: {gps['latitude']:.4f}° N, {gps['longitude']:.4f}° E{alt_txt}")
+        else:
+            self.lbl_preview_coords.config(text="📍 GPS: No coordinates in metadata")
 
         status = res_item["status"]
         color_rgb = CLASS_COLORS.get(status, (100, 100, 100))

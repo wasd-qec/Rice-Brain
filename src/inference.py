@@ -19,6 +19,44 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.model import build_classifier, CLASSES, CLASS_COLORS
 
 
+def extract_image_gps(img_path):
+    """
+    Reads standard EXIF GPS tags from an image (JPEG or PNG) if present
+    and returns decimal coordinates dict.
+    """
+    try:
+        with Image.open(img_path) as img:
+            exif = img.getexif()
+            gps_ifd = exif.get_ifd(0x8825)
+            if not gps_ifd or 2 not in gps_ifd or 4 not in gps_ifd:
+                return None
+
+            lat_dms = gps_ifd[2]
+            lat_ref = gps_ifd.get(1, 'N')
+            lon_dms = gps_ifd[4]
+            lon_ref = gps_ifd.get(3, 'E')
+            alt_val = gps_ifd.get(6, None)
+
+            lat = float(lat_dms[0]) + float(lat_dms[1]) / 60.0 + float(lat_dms[2]) / 3600.0
+            if lat_ref == 'S':
+                lat = -lat
+
+            lon = float(lon_dms[0]) + float(lon_dms[1]) / 60.0 + float(lon_dms[2]) / 3600.0
+            if lon_ref == 'W':
+                lon = -lon
+
+            alt = float(alt_val) if alt_val is not None else None
+
+            return {
+                "latitude": round(lat, 6),
+                "longitude": round(lon, 6),
+                "altitude": round(alt, 2) if alt is not None else None,
+                "google_maps": f"https://www.google.com/maps?q={round(lat, 6)},{round(lon, 6)}"
+            }
+    except Exception:
+        return None
+
+
 class RiceFieldPredictor:
     """
     Inference Engine that loads the trained PyTorch neural network
@@ -140,7 +178,8 @@ class RiceFieldPredictor:
                     "is_overruled": False,
                     "operator_label": None,
                     "reviewed_at": None,
-                    "probabilities": pred["probabilities"]
+                    "probabilities": pred["probabilities"],
+                    "gps": extract_image_gps(full_p)
                 }
                 results.append(item)
                 summary_counts[pred["status"]] += 1
@@ -203,15 +242,24 @@ class RiceFieldPredictor:
         if save_csv:
             with open(save_csv, "w", newline="", encoding="utf-8") as cf:
                 writer = csv.writer(cf)
-                header = ["filename", "relative_path", "subdirectory", "predicted_status", "confidence", "needs_review", "is_overruled", "operator_label"] + [f"prob_{c}" for c in CLASSES]
+                header = [
+                    "filename", "relative_path", "subdirectory", "predicted_status", "confidence",
+                    "latitude", "longitude", "altitude_m", "google_maps",
+                    "needs_review", "is_overruled", "operator_label"
+                ] + [f"prob_{c}" for c in CLASSES]
                 writer.writerow(header)
                 for item in results:
+                    gps_d = item.get("gps") or {}
                     row = [
                         item["filename"],
                         item["relative_path"],
                         item["relative_directory"],
                         item["status"],
                         f"{item['confidence']*100:.2f}%",
+                        gps_d.get("latitude", ""),
+                        gps_d.get("longitude", ""),
+                        gps_d.get("altitude", ""),
+                        gps_d.get("google_maps", ""),
                         item["needs_review"],
                         item["is_overruled"],
                         item["operator_label"] or ""

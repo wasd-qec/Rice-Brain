@@ -1,212 +1,111 @@
 {
-  "total_images": 10,
-  "directory": "D:\\Farm\\NNetwork\\Dataset\\Dry",
+  "total_images": 4,
+  "directory": "D:\\Farm\\NNetwork\\Input",
   "output_directory": "D:\\Farm\\NNetwork\\Output",
   "summary_counts": {
-    "Dry": 10,
-    "Flooded": 0,
+    "Dry": 0,
+    "Flooded": 2,
     "Planted": 0,
-    "Others": 0
+    "Others": 2
   },
   "overruled_count": 0,
   "needs_review_count": 0,
   "results": [
     {
-      "filename": "dry_01.png",
-      "relative_path": "dry_01.png",
+      "filename": "image copy.jpg",
+      "relative_path": "image copy.jpg",
       "relative_directory": ".",
-      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Dry\\dry_01.png",
-      "ai_status": "Dry",
-      "status": "Dry",
-      "confidence": 0.9507880210876465,
+      "full_path": "D:\\Farm\\NNetwork\\Input\\image copy.jpg",
+      "ai_status": "Others",
+      "status": "Others",
+      "confidence": 0.996522068977356,
       "needs_review": false,
       "is_overruled": false,
       "operator_label": null,
       "reviewed_at": null,
       "probabilities": {
-        "Dry": 0.9507880210876465,
-        "Flooded": 0.02497410774230957,
-        "Planted": 0.01458541676402092,
-        "Others": 0.009652483277022839
+        "Dry": 0.0014421524247154593,
+        "Flooded": 0.0015810895711183548,
+        "Planted": 0.0004547412972897291,
+        "Others": 0.996522068977356
+      },
+      "gps": {
+        "latitude": 13.575025,
+        "longitude": 103.875994,
+        "altitude": 29.6,
+        "google_maps": "https://www.google.com/maps?q=13.575025,103.875994"
       }
     },
     {
-      "filename": "dry_02.png",
-      "relative_path": "dry_02.png",
+      "filename": "image copy.png",
+      "relative_path": "image copy.png",
       "relative_directory": ".",
-      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Dry\\dry_02.png",
-      "ai_status": "Dry",
-      "status": "Dry",
-      "confidence": 0.9602723717689514,
+      "full_path": "D:\\Farm\\NNetwork\\Input\\image copy.png",
+      "ai_status": "Others",
+      "status": "Others",
+      "confidence": 0.9965474009513855,
       "needs_review": false,
       "is_overruled": false,
       "operator_label": null,
       "reviewed_at": null,
       "probabilities": {
-        "Dry": 0.9602723717689514,
-        "Flooded": 0.017037643119692802,
-        "Planted": 0.012588688172399998,
-        "Others": 0.010101351886987686
+        "Dry": 0.0014320103218778968,
+        "Flooded": 0.0015706541016697884,
+        "Planted": 0.0004500398354139179,
+        "Others": 0.9965474009513855
+      },
+      "gps": null
+    },
+    {
+      "filename": "image.jpg",
+      "relative_path": "image.jpg",
+      "relative_directory": ".",
+      "full_path": "D:\\Farm\\NNetwork\\Input\\image.jpg",
+      "ai_status": "Flooded",
+      "status": "Flooded",
+      "confidence": 0.9377208948135376,
+      "needs_review": false,
+      "is_overruled": false,
+      "operator_label": null,
+      "reviewed_at": null,
+      "probabilities": {
+        "Dry": 0.006301482208073139,
+        "Flooded": 0.9377208948135376,
+        "Planted": 0.020338650792837143,
+        "Others": 0.03563893586397171
+      },
+      "gps": {
+        "latitude": 13.444127,
+        "longitude": 103.27359,
+        "altitude": 20.49,
+        "google_maps": "https://www.google.com/maps?q=13.444127,103.27359"
       }
     },
     {
-      "filename": "dry_03.png",
-      "relative_path": "dry_03.png",
+      "filename": "image.png",
+      "relative_path": "image.png",
       "relative_directory": ".",
-      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Dry\\dry_03.png",
-      "ai_status": "Dry",
-      "status": "Dry",
-      "confidence": 0.9684361815452576,
+      "full_path": "D:\\Farm\\NNetwork\\Input\\image.png",
+      "ai_status": "Flooded",
+      "status": "Flooded",
+      "confidence": 0.9368917942047119,
       "needs_review": false,
       "is_overruled": false,
       "operator_label": null,
       "reviewed_at": null,
       "probabilities": {
-        "Dry": 0.9684361815452576,
-        "Flooded": 0.011649907566606998,
-        "Planted": 0.011292866431176662,
-        "Others": 0.00862100999802351
-      }
-    },
-    {
-      "filename": "dry_04.png",
-      "relative_path": "dry_04.png",
-      "relative_directory": ".",
-      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Dry\\dry_04.png",
-      "ai_status": "Dry",
-      "status": "Dry",
-      "confidence": 0.9602523446083069,
-      "needs_review": false,
-      "is_overruled": false,
-      "operator_label": null,
-      "reviewed_at": null,
-      "probabilities": {
-        "Dry": 0.9602523446083069,
-        "Flooded": 0.014298604801297188,
-        "Planted": 0.013777198269963264,
-        "Others": 0.01167189609259367
-      }
-    },
-    {
-      "filename": "dry_05.png",
-      "relative_path": "dry_05.png",
-      "relative_directory": ".",
-      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Dry\\dry_05.png",
-      "ai_status": "Dry",
-      "status": "Dry",
-      "confidence": 0.9683964252471924,
-      "needs_review": false,
-      "is_overruled": false,
-      "operator_label": null,
-      "reviewed_at": null,
-      "probabilities": {
-        "Dry": 0.9683964252471924,
-        "Flooded": 0.00936130154877901,
-        "Planted": 0.010487751103937626,
-        "Others": 0.011754509061574936
-      }
-    },
-    {
-      "filename": "dry_06.png",
-      "relative_path": "dry_06.png",
-      "relative_directory": ".",
-      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Dry\\dry_06.png",
-      "ai_status": "Dry",
-      "status": "Dry",
-      "confidence": 0.9783433079719543,
-      "needs_review": false,
-      "is_overruled": false,
-      "operator_label": null,
-      "reviewed_at": null,
-      "probabilities": {
-        "Dry": 0.9783433079719543,
-        "Flooded": 0.0061454977840185165,
-        "Planted": 0.008059348911046982,
-        "Others": 0.007451926823705435
-      }
-    },
-    {
-      "filename": "dry_07.png",
-      "relative_path": "dry_07.png",
-      "relative_directory": ".",
-      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Dry\\dry_07.png",
-      "ai_status": "Dry",
-      "status": "Dry",
-      "confidence": 0.9751828908920288,
-      "needs_review": false,
-      "is_overruled": false,
-      "operator_label": null,
-      "reviewed_at": null,
-      "probabilities": {
-        "Dry": 0.9751828908920288,
-        "Flooded": 0.0070773097686469555,
-        "Planted": 0.008592975325882435,
-        "Others": 0.009146826341748238
-      }
-    },
-    {
-      "filename": "dry_08.png",
-      "relative_path": "dry_08.png",
-      "relative_directory": ".",
-      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Dry\\dry_08.png",
-      "ai_status": "Dry",
-      "status": "Dry",
-      "confidence": 0.9749222993850708,
-      "needs_review": false,
-      "is_overruled": false,
-      "operator_label": null,
-      "reviewed_at": null,
-      "probabilities": {
-        "Dry": 0.9749222993850708,
-        "Flooded": 0.00825182069092989,
-        "Planted": 0.009353123605251312,
-        "Others": 0.0074727218598127365
-      }
-    },
-    {
-      "filename": "dry_09.png",
-      "relative_path": "dry_09.png",
-      "relative_directory": ".",
-      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Dry\\dry_09.png",
-      "ai_status": "Dry",
-      "status": "Dry",
-      "confidence": 0.9768452644348145,
-      "needs_review": false,
-      "is_overruled": false,
-      "operator_label": null,
-      "reviewed_at": null,
-      "probabilities": {
-        "Dry": 0.9768452644348145,
-        "Flooded": 0.006570285186171532,
-        "Planted": 0.008141258731484413,
-        "Others": 0.008443130180239677
-      }
-    },
-    {
-      "filename": "dry_10.png",
-      "relative_path": "dry_10.png",
-      "relative_directory": ".",
-      "full_path": "D:\\Farm\\NNetwork\\Dataset\\Dry\\dry_10.png",
-      "ai_status": "Dry",
-      "status": "Dry",
-      "confidence": 0.9807447791099548,
-      "needs_review": false,
-      "is_overruled": false,
-      "operator_label": null,
-      "reviewed_at": null,
-      "probabilities": {
-        "Dry": 0.9807447791099548,
-        "Flooded": 0.005823845975100994,
-        "Planted": 0.007636408321559429,
-        "Others": 0.005794950760900974
-      }
+        "Dry": 0.00633228151127696,
+        "Flooded": 0.9368917942047119,
+        "Planted": 0.020262083038687706,
+        "Others": 0.0365137979388237
+      },
+      "gps": null
     }
   ],
   "subdirectories": [
     "."
   ],
   "generated_json_files": [
-    "D:\\Farm\\NNetwork\\Output\\root.json",
-    "D:\\Farm\\NNetwork\\Output\\all_results.json"
+    "D:\\Farm\\NNetwork\\Output\\root.json"
   ]
 }
