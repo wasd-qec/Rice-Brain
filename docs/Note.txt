@@ -53,17 +53,16 @@ What it does:
    - Saves checkpoint weights to 'rice_field_classifier.pth'.
 
 
-4. BATCH CLASSIFY IMAGES & GENERATE JSON / CSV REPORTS
+4. BATCH CLASSIFY IMAGES & EXPORT CSV REPORTS
 --------------------------------------------------------------------------------
 Command:
    python inference.py
-   python inference.py --dir Input --output_dir Output
    python inference.py --dir Input --csv classification_summary.csv
 
 What it does:
    - Recursively scans Input/ and subdirectories.
    - Extracts EXIF GPS coordinates from every image.
-   - Generates JSON reports in Output/ and aggregate CSV.
+   - Prints summary breakdown to console and outputs optional aggregate CSV.
 
 
 5. EMBED REALISTIC CAMBODIA GPS COORDINATES

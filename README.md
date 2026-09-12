@@ -110,13 +110,13 @@ python train.py
 ---
 
 ### 4. CLI Batch Inference (`inference.py`)
-Classify images and generate detailed reports:
+Classify images and view results or export CSV:
 ```bash
 # 1. Classify all images in Input/ (including subdirectories):
 python inference.py
 
-# 2. Classify a custom directory and save reports to custom folder:
-python inference.py --dir Input/my_fields --output_dir Output
+# 2. Classify a custom directory:
+python inference.py --dir Input/my_fields
 
 # 3. Export CSV table with GPS coordinates:
 python inference.py --dir Input --csv results.csv
