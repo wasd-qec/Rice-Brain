@@ -1,0 +1,127 @@
+================================================================================
+🌾 RICE FIELD NEURAL NETWORK - STEP-BY-STEP CODE STUDY GUIDE
+================================================================================
+
+Welcome! This guide is designed to take you by the hand and walk you through 
+this codebase in the exact right order. 
+
+Machine learning projects look intimidating at first because files reference 
+each other. If you follow this reading roadmap, every piece will click into place.
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+1. The 30-Second Mental Map (What this repo does)
+2. Architecture Overview: Desktop App, Web Server & Neural Network
+3. Step 1: The Blueprint (src/model.py)
+4. Step 2: The Data Loader (src/dataset.py)
+5. Step 3: The Teacher (train.py & src/train.py)
+6. Step 4: The Predictor & GPS (src/inference.py & embed_coordinates.py)
+7. Step 5: The Desktop Dataset Curator (gui_app.py)
+8. Step 6: The Parcel Database & Web Dashboard (web_server.py & web/)
+9. Step 7: The Automated Quality Test Suite (test_pipeline.py & test_parcel_db.py)
+10. Quick "Which function does what?" Cheat Sheet
+
+================================================================================
+1. THE 30-SECOND MENTAL MAP
+================================================================================
+This project takes drone/satellite photos of farmland and identifies whether a parcel is:
+   1. Dry (harvested or bare soil)
+   2. Flooded (water prepared for planting)
+   3. Planted (green growing rice)
+   4. Others (roads, houses, forest, canals)
+
+The ecosystem has 3 core workflows:
+   [Raw Photos in Unsorted/] 
+         ⬇  (Curated & Labeled via gui_app.py)
+   [Data in Dataset/] 
+         ⬇  (Trained by src/train.py -> saved as rice_field_classifier.pth)
+   [Field Operations in Web Dashboard / web_server.py]
+         ⬇  (Lazy SQLite database farm_parcels.db, coordinate primary keys, & operator curation)
+
+================================================================================
+2. ARCHITECTURE OVERVIEW: ROOT RUNNERS VS SRC/ VS WEB
+================================================================================
+- Root Runners (train.py, inference.py): Command-line entry points.
+- Core Algorithms (src/):
+  * src/model.py: Deep learning ResNet architecture.
+  * src/dataset.py: Loads image batches and applies random data augmentations.
+  * src/train.py: Executes PyTorch training loop on CUDA GPU.
+  * src/inference.py: Loads weights, runs softmax predictions, and extracts EXIF GPS.
+- Desktop Tool (gui_app.py): Tkinter app to curate Unsorted/ images into Dataset/.
+- Web Platform (web_server.py, web/): Built-in REST server, lazy SQLite database,
+  warning triggers, and operator review modal.
+
+================================================================================
+3. STEP 1: THE BLUEPRINT -> src/model.py (The Neural Network Brain)
+================================================================================
+Start with model architecture to understand how the AI "thinks":
+- Lines 10-21: The 4 categories: ["Dry", "Flooded", "Planted", "Others"].
+- ResidualBlock: Skip connection block that allows gradient signals to flow through 
+  deep layers without vanishing (ResNet technique).
+- RiceFieldClassifier:
+  * Stem: 7x7 convolution + MaxPool to shrink high-res drone images down.
+  * Stages 1 to 4: Residual blocks expanding from 64 to 512 channels.
+  * FC: Final linear layer producing 4 raw logits for the classes.
+
+================================================================================
+4. STEP 2 -> src/dataset.py (How Images are Fed to the AI)
+================================================================================
+- Loads images from Dataset/Dry, Dataset/Flood, Dataset/Planted, Dataset/Others.
+- Converts images into RGB PyTorch tensors of size (3, 224, 224).
+- Augmentations: Random horizontal/vertical flips, color jitter, and rotation to make
+  the model robust against lighting and field angles.
+
+================================================================================
+5. STEP 3 -> train.py & src/train.py (The Training Engine)
+================================================================================
+- Automatic CUDA detection: Trains on your NVIDIA RTX 5060 GPU.
+- Uses Adam optimizer with Cross-Entropy Loss.
+- Saves best model checkpoint into 'rice_field_classifier.pth'.
+
+================================================================================
+6. STEP 4 -> src/inference.py & embed_coordinates.py
+================================================================================
+- RiceFieldPredictor: Loads checkpoint weights and computes softmax probabilities.
+- extract_image_gps(): Reads standard EXIF GPS tags (IFD 0x8825) from JPEG/PNG images
+  to extract latitude, longitude, and elevation.
+- embed_coordinates.py: Embeds realistic coordinates across Cambodia's rice provinces
+  (Battambang, Takeo, Prey Veng, Siem Reap, Pursat, Kampong Cham) into image EXIF tags.
+
+================================================================================
+7. STEP 5 -> gui_app.py (Desktop Dataset Curator & Training Manager)
+================================================================================
+- Dual Dataset Pools:
+  * Unsorted Pool (Unsorted/): Incoming raw photos waiting to be sorted.
+  * Sorted Dataset (Dataset/): Categorized classes.
+- Hotkeys:
+  * [1-4]: Move to Dry, Flooded, Planted, Others.
+  * [U]: Return image to Unsorted.
+  * [Space]: Accept AI guess.
+- Fix Mis-sorts: Select any sorted photo and press [1-4] to change its class folder.
+- Retraining: "Train AI Model" button launches training asynchronously in background.
+
+================================================================================
+8. STEP 6 -> web_server.py & web/ (Parcel Database & Web Dashboard)
+================================================================================
+- Lazy SQLite Creation: farm_parcels.db is created only when clicking "Classify Input Directory".
+- Schema: parcels [coordinate (PK), picture (BLOB), date, status, flag, confidence]
+- Storage Rules:
+  * If 'Planted' or confidence < 80%: flag = 1 and saves picture BLOB in database.
+  * Else: flag = 0 and picture = NULL (discards picture).
+  * Coordinate is Primary Key: new records with matching coordinates overwrite previous rows.
+- Operator Review:
+  * Modal displays picture from database.
+  * If kept as 'Planted': picture & flag remain in database.
+  * If changed to 'Dry', 'Flooded', or 'Others': picture is cleared and flag set to 0.
+
+================================================================================
+9. STEP 7 -> test_pipeline.py & test_parcel_db.py (Automated Tests)
+================================================================================
+Run all tests at any time:
+   python -m unittest test_pipeline.py
+   python -m unittest test_parcel_db.py
+
+Verifies model shapes, augmentations, overrule export, lazy database creation,
+upserts, and picture retention rules.
+================================================================================

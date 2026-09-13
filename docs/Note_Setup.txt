@@ -1,0 +1,145 @@
+================================================================================
+🌾 RICE FIELD AI - ENVIRONMENT & VIRTUAL ENVIRONMENT SETUP GUIDE
+================================================================================
+
+This document provides step-by-step instructions on requirements, creating a 
+virtual environment (venv), installing dependencies, and verifying your setup.
+
+
+1. SYSTEM REQUIREMENTS & PREREQUISITES
+--------------------------------------------------------------------------------
+- Operating System: Windows 10/11, Linux, or macOS.
+- Python: Version 3.10 to 3.14 (64-bit recommended).
+  Check your Python version:
+    python --version
+
+- Hardware:
+  * CPU: Supported for inference, web dashboard, GUI, and CPU training.
+  * GPU (Optional): NVIDIA GPU with CUDA support for accelerated model training.
+
+- Dependencies (`requirements.txt`):
+  * torch >= 2.0.0       (Deep learning neural network framework)
+  * torchvision >= 0.15.0 (Vision models, transforms, and image utilities)
+  * numpy >= 1.24.0      (Numerical calculations and array processing)
+  * Pillow >= 9.5.0      (Image opening, EXIF GPS read/write, saving)
+
+- Built-in Standard Libraries Used (No extra pip install required):
+  * tkinter              (Desktop curation GUI)
+  * http.server, urllib  (Web dashboard REST server)
+  * sqlite3              (Parcel database engine)
+  * json, csv, unittest  (Data export & automated testing)
+
+
+2. STEP-BY-STEP SETUP COMMANDS
+--------------------------------------------------------------------------------
+
+Step A: Open Terminal & Navigate to Project Directory
+------------------------------------------------------
+Ensure your terminal or command prompt is inside the project root:
+  cd d:\Farm\NNetwork
+
+
+Step B: Create a Virtual Environment (`venv`)
+----------------------------------------------
+Run Python's built-in venv module to create an isolated environment named 'venv':
+  python -m venv venv
+
+
+Step C: Activate the Virtual Environment
+-----------------------------------------
+Choose the command matching your shell / operating system:
+
+* Windows - PowerShell:
+    .\venv\Scripts\Activate.ps1
+
+  Tip: If you encounter an execution policy error in PowerShell, run:
+    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+* Windows - Git Bash:
+    source venv/Scripts/activate
+
+* Windows - Command Prompt (CMD):
+    venv\Scripts\activate.bat
+
+* Linux / macOS (Bash / Zsh):
+    source venv/bin/activate
+
+(When active, you will see `(venv)` prefixed in your terminal prompt.)
+
+
+Step D: Upgrade Pip (Recommended)
+----------------------------------
+Ensure the latest package manager is installed:
+  python -m pip install --upgrade pip
+
+
+Step E: Install Project Requirements
+-------------------------------------
+Standard Installation:
+  pip install -r requirements.txt
+
+(Optional) NVIDIA CUDA GPU Accelerated PyTorch:
+If you have an NVIDIA GPU and want GPU-accelerated training (CUDA 12.1+):
+  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+  pip install numpy Pillow
+
+
+3. VERIFY THE INSTALLATION
+--------------------------------------------------------------------------------
+
+Step A: Verify PyTorch & GPU / CUDA Detection
+----------------------------------------------
+Run:
+  python -c "import torch; print('PyTorch Version:', torch.__version__, '| CUDA Available:', torch.cuda.is_available())"
+
+Output should show the installed PyTorch version and `CUDA Available: True` (or False if CPU-only).
+
+
+Step B: Run Automated Unit Tests
+---------------------------------
+Run the test suite to ensure all modules (model, dataset, DB, pipeline) are working:
+  python -m unittest discover -s tests
+
+Expected result: All tests pass with `OK`.
+
+
+4. COMMON COMMANDS AFTER SETUP
+--------------------------------------------------------------------------------
+Once the environment is active and verified, you can run any of the tools:
+
+- Launch Web Dashboard (SQLite Parcel DB):
+    python web_server.py
+    (Open in browser: http://localhost:5000)
+
+- Launch Desktop Dataset Curator & Training GUI:
+    python gui_app.py
+
+- Train the Neural Network:
+    python train.py
+
+- Batch Classify Images via CLI:
+    python inference.py
+    python inference.py --dir Input --csv results.csv
+
+- Embed Realistic Cambodia GPS Coordinates:
+    python embed_coordinates.py Input
+
+
+5. EXITING OR RESETTING THE VIRTUAL ENVIRONMENT
+--------------------------------------------------------------------------------
+- To Deactivate the Virtual Environment:
+    deactivate
+
+- To Delete & Recreate the Environment (if packages get corrupted):
+  * Windows (PowerShell):
+      Remove-Item -Recurse -Force .\venv
+      python -m venv venv
+      .\venv\Scripts\Activate.ps1
+      pip install -r requirements.txt
+
+  * Windows (CMD):
+      rmdir /s /q venv
+      python -m venv venv
+      venv\Scripts\activate.bat
+      pip install -r requirements.txt
+================================================================================

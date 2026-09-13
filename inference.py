@@ -13,10 +13,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Predict Rice Field State (Dry, Flooded, Planted, Others).")
     parser.add_argument("--image", type=str, default=None, help="Path to a single image to classify")
     parser.add_argument("--dir", "--input_dir", dest="input_dir", type=str, default=None, help="Directory to scan recursively (default: Input/)")
-    parser.add_argument("--output_dir", "-o", type=str, default="Output", help="Directory to save per-subdirectory JSON reports (default: Output/)")
     parser.add_argument("--model", type=str, default="rice_field_classifier.pth", help="Model checkpoint path")
     parser.add_argument("--csv", type=str, default=None, help="Optional path to export batch results as CSV")
-    parser.add_argument("--json", type=str, default=None, help="Optional path to export batch results as JSON")
     
     args = parser.parse_args()
     predictor = RiceFieldPredictor(model_path=args.model)
@@ -36,9 +34,7 @@ if __name__ == "__main__":
         print(f"[*] Scanning & classifying all images in '{target_dir}' (including all subdirectories)...")
         batch_res = predictor.predict_directory(
             input_dir=target_dir,
-            output_dir=args.output_dir,
-            save_csv=args.csv,
-            save_json=args.json
+            save_csv=args.csv
         )
         
         print("\n" + "="*75)
@@ -52,12 +48,6 @@ if __name__ == "__main__":
         print("="*75)
         print(f"Total Images Classified: {batch_res['total_images']}")
         print("Summary Breakdown:", ", ".join([f"{k}: {v}" for k, v in batch_res["summary_counts"].items()]))
-        
-        if batch_res.get("generated_json_files"):
-            print(f"[+] Subdirectory JSON reports saved to '{args.output_dir}/':")
-            for jpath in batch_res["generated_json_files"]:
-                rel_jpath = os.path.relpath(jpath, os.getcwd()).replace("\\", "/")
-                print(f"    - {rel_jpath}")
         print("="*75 + "\n")
 
 
