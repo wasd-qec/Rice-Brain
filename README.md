@@ -55,6 +55,11 @@ NNetwork/
 
 ## 🚀 Quick Start
 
+### 0. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
 ### 1. Web Dashboard & Parcel Database (`web_server.py`)
 Launch the web dashboard:
 ```bash
