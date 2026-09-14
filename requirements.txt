@@ -1,16 +1,22 @@
 # Rice Field AI — Project Dependencies
 # =============================================================================
-# HARDWARE TARGET:
-# [DEFAULT] CPU-Only (Fast, lightweight ~200 MB download, no GPU required):
---extra-index-url https://download.pytorch.org/whl/cpu
-
-# [GPU OPTIONS] Uncomment ONE matching your GPU and comment out the CPU line above:
-# • RTX 50 Series / RTX 40 / RTX 30 (CUDA 12.4+ - Recommended for modern GPUs):
+# HARDWARE & PYTHON TARGET (PYTORCH CUDA / CPU INDEX):
+# Choose ONE index matching your Python version, GPU architecture, and CUDA runtime:
+#
+# • [CURRENT ACTIVE] Python 3.14 + RTX 50 Series (Blackwell - RTX 5060/5070/5080/5090 - CUDA 13.0):
+--extra-index-url https://download.pytorch.org/whl/cu130
+#
+# • Python 3.11 - 3.12 + RTX 50 / 40 / 30 Series (CUDA 12.4+):
 # --extra-index-url https://download.pytorch.org/whl/cu124
-# • RTX 40 Series / RTX 30 Series (CUDA 12.1):
+#
+# • Python 3.10 - 3.12 + RTX 40 / 30 Series (CUDA 12.1):
 # --extra-index-url https://download.pytorch.org/whl/cu121
-# • Older NVIDIA GPUs / Legacy Drivers (CUDA 11.8):
+#
+# • Legacy GPUs / Older Drivers (CUDA 11.8):
 # --extra-index-url https://download.pytorch.org/whl/cu118
+#
+# • CPU-Only Fallback (Fast, lightweight ~200 MB download, no GPU required):
+# --extra-index-url https://download.pytorch.org/whl/cpu
 # =============================================================================
 
 # Core Deep Learning & Computer Vision
@@ -20,3 +26,4 @@ torchvision>=0.15.0
 # Numerical Computing & Image Processing
 numpy>=1.24.0
 Pillow>=9.5.0
+

@@ -1,0 +1,35 @@
+================================================================================
+🌾 Rice Field AI — GPU Setup & Compatibility Reference (RTX 5060 / Both Python)
+================================================================================
+
+Hardware:
+  - GPU: NVIDIA GeForce RTX 5060 Laptop GPU (Blackwell Architecture)
+  - CUDA Runtime: 13.0 (for Python 3.14) / 12.4+ (for Python 3.12)
+
+--------------------------------------------------------------------------------
+1. Python 3.14 (Active Configuration)
+--------------------------------------------------------------------------------
+Use CUDA 13.0 (`cu130`):
+  py -3.14 -m venv --system-site-packages venv
+  source venv/Scripts/activate
+  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+  pip install -r requirements.txt
+
+Verify:
+  python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.cuda.is_available(), '| Device:', torch.cuda.get_device_name(0))"
+
+--------------------------------------------------------------------------------
+2. Python 3.12 (Alternative Configuration)
+--------------------------------------------------------------------------------
+Use CUDA 12.4+ (`cu124`):
+  py -3.12 -m venv venv
+  source venv/Scripts/activate
+  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+  pip install -r requirements.txt
+
+--------------------------------------------------------------------------------
+3. CPU-Only (Fallback on any Python)
+--------------------------------------------------------------------------------
+  pip install -r requirements.txt
+  (with the CPU index uncommented in requirements.txt)
+================================================================================

@@ -101,20 +101,23 @@ This downloads in seconds, saves ~4 GB of disk space, and fully supports:
 
 
 --- OPTION 2: GPU-Accelerated Setup (NVIDIA CUDA) ---
-PyTorch CUDA links differ based on your GPU series and architecture:
+PyTorch CUDA links differ based on your Python version and GPU architecture:
 
-* RTX 50 Series (Blackwell - e.g. RTX 5060, 5070, 5080, 5090):
-    Requires CUDA 12.4+ / 12.6+ drivers for full Blackwell architecture support:
+* Python 3.14 + RTX 50 Series (Blackwell - e.g. RTX 5060, 5070, 5080, 5090):
+    Requires CUDA 13.0 (`cu130`) build:
+      pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+      pip install -r requirements.txt
+
+* Python 3.11 / 3.12 + RTX 50 / 40 / 30 Series:
+    Requires CUDA 12.4+ (`cu124`):
       pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
       pip install -r requirements.txt
 
-* RTX 40 Series & RTX 30 Series (Ada Lovelace / Ampere):
-    Supported by CUDA 12.1 and CUDA 12.4:
+* RTX 40 Series & RTX 30 Series (Ada Lovelace / Ampere - CUDA 12.1):
       pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
       pip install -r requirements.txt
 
-* Older NVIDIA GPUs (GTX 10xx, RTX 20xx, Older Drivers):
-    Use CUDA 11.8:
+* Older NVIDIA GPUs (GTX 10xx, RTX 20xx, Older Drivers - CUDA 11.8):
       pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
       pip install -r requirements.txt
 

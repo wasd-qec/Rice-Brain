@@ -67,7 +67,12 @@ pip install -r requirements.txt
 
 **Option B: NVIDIA GPU (CUDA Accelerated Training)**
 Uncomment your matching GPU line inside `requirements.txt`, or install directly via pip:
-- **RTX 50 Series / 40 / 30 (CUDA 12.4+ - Recommended):**
+- **Python 3.14 + RTX 50 Series (Blackwell - RTX 5060/5070/5080/5090 - CUDA 13.0):**
+  ```bash
+  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+  pip install -r requirements.txt
+  ```
+- **Python 3.11 - 3.12 + RTX 50 / 40 / 30 Series (CUDA 12.4+):**
   ```bash
   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
   pip install -r requirements.txt
