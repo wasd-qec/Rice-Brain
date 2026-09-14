@@ -56,9 +56,38 @@ NNetwork/
 ## 🚀 Quick Start
 
 ### 0. Install Dependencies
+
+Choose based on your hardware:
+
+**Option A: Default Installation (CPU-Only, Lightweight ~200 MB)**
 ```bash
 pip install -r requirements.txt
 ```
+*(Automatically uses the official PyTorch CPU wheel configured inside `requirements.txt`)*
+
+**Option B: NVIDIA GPU (CUDA Accelerated Training)**
+Uncomment your matching GPU line inside `requirements.txt`, or install directly via pip:
+- **RTX 50 Series / 40 / 30 (CUDA 12.4+ - Recommended):**
+  ```bash
+  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+  pip install -r requirements.txt
+  ```
+- **RTX 40 Series / 30 Series (CUDA 12.1):**
+  ```bash
+  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+  pip install -r requirements.txt
+  ```
+- **Older GPUs / Legacy Drivers (CUDA 11.8):**
+  ```bash
+  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+  pip install -r requirements.txt
+  ```
+
+**Verify PyTorch & Hardware Detection:**
+```bash
+python -c "import torch; print('PyTorch:', torch.__version__, '| CUDA:', torch.cuda.is_available(), '| Device:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
+```
+
 
 ### 1. Web Dashboard & Parcel Database (`web_server.py`)
 Launch the web dashboard:
