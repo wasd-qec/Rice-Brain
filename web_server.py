@@ -4,18 +4,19 @@ web_server.py - Lightweight REST API & Web Dashboard Server for Rice Farm Parcel
 Features:
 1. Lazy database initialization: 'farm_parcels.db' is NOT created until /api/classify is triggered.
 2. Manages 'parcels' table:
-   [coordinate (PRIMARY KEY), picture (BLOB), date, status, flag, confidence]
+   [coordinate (PRIMARY KEY), picture_path (TEXT), date, status, flag, confidence]
 3. Classifies all images in 'Input/':
-   - If status == 'Planted' or confidence < 0.80 -> flag = 1 and saves JPEG BLOB into DB.
-   - Otherwise -> flag = 0 and picture = NULL (lose the picture).
+   - If status == 'Planted' or confidence < 0.80 -> flag = 1 and saves clean JPEG into 'parcel_pictures/' directory with path in DB.
+   - Otherwise -> flag = 0 and picture_path = NULL (lose the picture).
    - If coordinate already exists, replaces the row (coordinate is primary key).
 4. Operator review:
-   - If decided as 'Planted' -> keep flag = 1 and keep picture.
-   - If decided as 'Dry'/'Flooded'/'Others' -> set flag = 0 and set picture = NULL.
+   - If decided as 'Planted' -> keep flag = 1 and keep picture in storage directory.
+   - If decided as 'Dry'/'Flooded'/'Others' -> set flag = 0, delete picture file from disk, and set picture_path = NULL.
 """
 
 import os
 import sys
+import re
 import json
 import sqlite3
 import urllib.parse
@@ -31,6 +32,7 @@ from src.inference import RiceFieldPredictor, extract_image_gps
 
 DB_FILE = os.path.abspath("farm_parcels.db")
 INPUT_DIR = os.path.abspath("Input")
+PICTURES_DIR = os.path.abspath("parcel_pictures")
 STATIC_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "web")
 
 # Global predictor (lazy-loaded)
@@ -53,40 +55,130 @@ def get_db_connection():
     return conn
 
 
+def coordinate_to_filename(coordinate):
+    """Generates a safe filename based on coordinates (e.g., '11.877700_106.177700.jpg')."""
+    safe = re.sub(r"[^0-9a-zA-Z._-]", "_", coordinate.strip())
+    safe = re.sub(r"_+", "_", safe).strip("_")
+    return f"{safe}.jpg"
+
+
+def _save_clean_jpeg(img, target_path):
+    """Converts image to RGB mode and writes JPEG at quality 92."""
+    if img.mode in ('RGBA', 'LA', 'P'):
+        bg = Image.new('RGB', img.size, (255, 255, 255))
+        alpha_img = img.convert('RGBA')
+        if 'transparency' in img.info or img.mode in ('RGBA', 'LA'):
+            bg.paste(alpha_img, mask=alpha_img.split()[3])
+        else:
+            bg.paste(alpha_img)
+        work_img = bg
+    else:
+        work_img = img.convert('RGB')
+    work_img.save(target_path, format='JPEG', quality=92)
+
+
+def save_parcel_picture(img_source, coordinate):
+    """
+    Saves clean JPEG into PICTURES_DIR with filename based on coordinate.
+    img_source can be a filesystem path (str) or raw image bytes.
+    Returns relative path string (e.g. 'parcel_pictures/11.877700_106.177700.jpg').
+    """
+    os.makedirs(PICTURES_DIR, exist_ok=True)
+    filename = coordinate_to_filename(coordinate)
+    full_path = os.path.join(PICTURES_DIR, filename)
+
+    if isinstance(img_source, (bytes, bytearray)):
+        with Image.open(BytesIO(img_source)) as img:
+            _save_clean_jpeg(img, full_path)
+    elif isinstance(img_source, str) and os.path.exists(img_source):
+        with Image.open(img_source) as img:
+            _save_clean_jpeg(img, full_path)
+    else:
+        return None
+
+    # Compute path relative to DB_FILE directory for portability
+    base_dir = os.path.dirname(DB_FILE)
+    return os.path.relpath(full_path, start=base_dir).replace("\\", "/")
+
+
+def resolve_picture_path(picture_path):
+    """Resolves relative or absolute picture_path to an absolute filesystem path."""
+    if not picture_path:
+        return None
+    if os.path.isabs(picture_path):
+        return picture_path
+    base_dir = os.path.dirname(DB_FILE)
+    return os.path.normpath(os.path.join(base_dir, picture_path))
+
+
+def remove_parcel_picture(picture_path):
+    """Deletes image file from disk if it exists."""
+    full_path = resolve_picture_path(picture_path)
+    if full_path and os.path.isfile(full_path):
+        try:
+            os.remove(full_path)
+        except OSError as e:
+            print(f"[!] Failed to remove picture {full_path}: {e}")
+
+
 def init_db_if_needed():
-    """Initializes the SQLite database and table if not present."""
+    """Initializes SQLite database and table if not present, and migrates legacy BLOB schemas."""
+    os.makedirs(PICTURES_DIR, exist_ok=True)
     conn = get_db_connection()
     with conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS parcels (
-                coordinate TEXT PRIMARY KEY,
-                picture BLOB,
-                date TEXT,
-                status TEXT,
-                flag INTEGER,
-                confidence REAL
-            );
-        """)
-    conn.close()
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='parcels'")
+        table_exists = cur.fetchone() is not None
 
-
-def get_image_jpeg_bytes(img_path):
-    """Reads and returns clean JPEG bytes for storing as a BLOB."""
-    with Image.open(img_path) as img:
-        if img.mode in ('RGBA', 'LA', 'P'):
-            bg = Image.new('RGB', img.size, (255, 255, 255))
-            alpha_img = img.convert('RGBA')
-            if 'transparency' in img.info or img.mode in ('RGBA', 'LA'):
-                bg.paste(alpha_img, mask=alpha_img.split()[3])
-            else:
-                bg.paste(alpha_img)
-            work_img = bg
+        if not table_exists:
+            conn.execute("""
+                CREATE TABLE parcels (
+                    coordinate TEXT PRIMARY KEY,
+                    picture_path TEXT,
+                    date TEXT,
+                    status TEXT,
+                    flag INTEGER,
+                    confidence REAL
+                );
+            """)
         else:
-            work_img = img.convert('RGB')
+            cur.execute("PRAGMA table_info(parcels)")
+            cols = [row["name"] for row in cur.fetchall()]
 
-        buf = BytesIO()
-        work_img.save(buf, format='JPEG', quality=92)
-        return buf.getvalue()
+            # Automatic migration: legacy DB stored BLOB in 'picture'
+            if "picture" in cols and "picture_path" not in cols:
+                print("[*] Migrating database: moving picture BLOBs to disk directory...")
+                cur.execute("SELECT coordinate, picture, date, status, flag, confidence FROM parcels")
+                rows = cur.fetchall()
+                migrated = []
+                for r in rows:
+                    pic_blob = r["picture"]
+                    coord = r["coordinate"]
+                    rel_p = None
+                    if pic_blob:
+                        try:
+                            rel_p = save_parcel_picture(pic_blob, coord)
+                        except Exception as e:
+                            print(f"[!] Migration error saving image for {coord}: {e}")
+                    migrated.append((coord, rel_p, r["date"], r["status"], r["flag"], r["confidence"]))
+
+                cur.execute("DROP TABLE parcels")
+                cur.execute("""
+                    CREATE TABLE parcels (
+                        coordinate TEXT PRIMARY KEY,
+                        picture_path TEXT,
+                        date TEXT,
+                        status TEXT,
+                        flag INTEGER,
+                        confidence REAL
+                    );
+                """)
+                cur.executemany("""
+                    INSERT INTO parcels (coordinate, picture_path, date, status, flag, confidence)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, migrated)
+                print(f"[*] Successfully migrated {len(migrated)} parcel record(s) to directory storage.")
+    conn.close()
 
 
 def get_image_date(img_path):
@@ -190,23 +282,25 @@ class ParcelRequestHandler(BaseHTTPRequestHandler):
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute("""
-            SELECT coordinate, date, status, flag, confidence,
-                   CASE WHEN picture IS NOT NULL THEN 1 ELSE 0 END AS has_picture
+            SELECT coordinate, date, status, flag, confidence, picture_path
             FROM parcels
             ORDER BY flag DESC, date DESC
         """)
         rows = cur.fetchall()
-        parcels = [
-            {
+        parcels = []
+        for r in rows:
+            pic_p = r["picture_path"]
+            abs_p = resolve_picture_path(pic_p) if pic_p else None
+            has_pic = bool(pic_p and abs_p and os.path.exists(abs_p))
+            parcels.append({
                 "coordinate": r["coordinate"],
                 "date": r["date"],
                 "status": r["status"],
                 "flag": bool(r["flag"]),
                 "confidence": round(r["confidence"], 4) if r["confidence"] is not None else None,
-                "has_picture": bool(r["has_picture"])
-            }
-            for r in rows
-        ]
+                "has_picture": has_pic,
+                "picture_path": pic_p
+            })
         conn.close()
 
         self.send_json(200, {"parcels": parcels, "db_exists": True})
@@ -218,20 +312,30 @@ class ParcelRequestHandler(BaseHTTPRequestHandler):
 
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT picture FROM parcels WHERE coordinate = ?", (coordinate,))
+        cur.execute("SELECT picture_path FROM parcels WHERE coordinate = ?", (coordinate,))
         row = cur.fetchone()
         conn.close()
 
-        if not row or not row["picture"]:
+        if not row or not row["picture_path"]:
             self.send_error(404, "Picture not found or not stored for this coordinate")
             return
 
-        self.send_response(200)
-        self.send_header("Content-Type", "image/jpeg")
-        self.send_header("Content-Length", str(len(row["picture"])))
-        self.send_header("Cache-Control", "no-cache")
-        self.end_headers()
-        self.wfile.write(row["picture"])
+        full_path = resolve_picture_path(row["picture_path"])
+        if not full_path or not os.path.isfile(full_path):
+            self.send_error(404, "Picture file not found on disk")
+            return
+
+        try:
+            with open(full_path, "rb") as f:
+                content = f.read()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", str(len(content)))
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.wfile.write(content)
+        except Exception as e:
+            self.send_error(500, f"Error reading picture file: {e}")
 
     def handle_api_classify(self):
         """Scans Input/ directory, classifies images, and populates database."""
@@ -288,24 +392,31 @@ class ParcelRequestHandler(BaseHTTPRequestHandler):
                 # 4. Flag Condition: 'Planted' OR low confidence (< 0.80)
                 is_flagged = (status == "Planted" or conf < 0.80)
 
-                # 5. Picture retention rule: keep if flagged, else lose it (None)
+                # Check if coordinate already has a picture saved
+                cur.execute("SELECT picture_path FROM parcels WHERE coordinate = ?", (coord_str,))
+                existing_row = cur.fetchone()
+                existing_pic_path = existing_row["picture_path"] if existing_row else None
+
+                # 5. Picture retention rule: save to directory if flagged, else remove/lose it
                 if is_flagged:
-                    pic_bytes = get_image_jpeg_bytes(img_p)
+                    pic_path = save_parcel_picture(img_p, coord_str)
                     flagged_count += 1
                 else:
-                    pic_bytes = None
+                    pic_path = None
+                    if existing_pic_path:
+                        remove_parcel_picture(existing_pic_path)
 
                 # 6. Upsert into database (coordinate is primary key)
                 cur.execute("""
-                    INSERT INTO parcels (coordinate, picture, date, status, flag, confidence)
+                    INSERT INTO parcels (coordinate, picture_path, date, status, flag, confidence)
                     VALUES (?, ?, ?, ?, ?, ?)
                     ON CONFLICT(coordinate) DO UPDATE SET
-                        picture = excluded.picture,
+                        picture_path = excluded.picture_path,
                         date = excluded.date,
                         status = excluded.status,
                         flag = excluded.flag,
                         confidence = excluded.confidence;
-                """, (coord_str, pic_bytes, date_str, status, 1 if is_flagged else 0, conf))
+                """, (coord_str, pic_path, date_str, status, 1 if is_flagged else 0, conf))
 
                 classified_count += 1
             except Exception as err:
@@ -354,19 +465,21 @@ class ParcelRequestHandler(BaseHTTPRequestHandler):
             return
 
         # Review Rule:
-        # If operator chooses 'Planted': keep flag = 1 and keep picture.
-        # If operator chooses another class ('Dry', 'Flooded', 'Others'): flag = 0 and picture = NULL.
+        # If operator chooses 'Planted': keep flag = 1 and keep picture path.
+        # If operator chooses another class ('Dry', 'Flooded', 'Others'): flag = 0, delete picture file from disk, picture_path = NULL.
         if decision == "Planted":
             cur.execute("""
                 UPDATE parcels
                 SET status = 'Planted', flag = 1
                 WHERE coordinate = ?;
             """, (coordinate,))
-            msg = f"Confirmed '{coordinate}' as Planted. Picture and review flag retained in DB."
+            msg = f"Confirmed '{coordinate}' as Planted. Picture and review flag retained in storage."
         else:
+            if row["picture_path"]:
+                remove_parcel_picture(row["picture_path"])
             cur.execute("""
                 UPDATE parcels
-                SET status = ?, flag = 0, picture = NULL
+                SET status = ?, flag = 0, picture_path = NULL
                 WHERE coordinate = ?;
             """, (decision, coordinate))
             msg = f"Updated '{coordinate}' to {decision}. Picture discarded and review flag cleared."
@@ -433,8 +546,9 @@ def run_server(port=5000):
     httpd = HTTPServer(server_address, ParcelRequestHandler)
     print(f"============================================================")
     print(f"[+] Rice Farm Parcel Web Server running on http://localhost:{port}")
-    print(f"[+] Static Directory: {STATIC_DIR}")
-    print(f"[+] Database Path:    {DB_FILE} (created on first classify)")
+    print(f"[+] Static Directory:   {STATIC_DIR}")
+    print(f"[+] Pictures Directory: {PICTURES_DIR}")
+    print(f"[+] Database Path:      {DB_FILE} (created on first classify)")
     print(f"============================================================")
     try:
         httpd.serve_forever()

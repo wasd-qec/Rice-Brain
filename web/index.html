@@ -93,7 +93,7 @@
         <h3 class="banner-title">Operator Review Required</h3>
         <p class="banner-desc" id="warning-banner-text">
           There are parcels flagged as <strong>Planted</strong> or with <strong>low AI confidence (&lt;80%)</strong>. 
-          Their picture has been saved to the database. Click <strong>Review</strong> to verify each parcel.
+          Their picture has been saved to disk (<code>parcel_pictures/</code>). Click <strong>Review</strong> to verify each parcel.
         </p>
       </div>
     </div>
@@ -102,7 +102,7 @@
     <main class="content-card">
       <div class="card-toolbar">
         <div class="toolbar-left">
-          <h2 class="card-heading">Database Records (No Pictures)</h2>
+          <h2 class="card-heading">Database Records</h2>
           <span class="record-counter" id="record-count-badge">0 records</span>
         </div>
         <div class="toolbar-right">
@@ -157,7 +157,7 @@
       <div class="modal-header">
         <div>
           <h2 class="modal-title">🔎 Operator Parcel Review</h2>
-          <p class="modal-subtitle" id="modal-subtitle">Inspecting saved picture from database</p>
+          <p class="modal-subtitle" id="modal-subtitle">Inspecting saved picture from directory storage</p>
         </div>
         <button class="btn-close" onclick="closeModal()">✕</button>
       </div>
@@ -165,7 +165,7 @@
       <div class="modal-body">
         <div class="modal-preview-container">
           <img id="modal-img" src="" alt="Parcel Preview" class="modal-image">
-          <div id="modal-img-loading" class="img-loading-spinner hidden">Loading Picture from Database...</div>
+          <div id="modal-img-loading" class="img-loading-spinner hidden">Loading Picture from Storage...</div>
         </div>
 
         <div class="modal-details">
@@ -189,8 +189,8 @@
           <div class="rule-callout">
             <p><strong>Curation Rules:</strong></p>
             <ul>
-              <li>If <strong>Planted</strong>: Picture and review flag will remain stored in the database.</li>
-              <li>If <strong>Dry</strong>, <strong>Flooded</strong>, or <strong>Others</strong>: Review flag is cleared and the picture is permanently removed from the database.</li>
+              <li>If <strong>Planted</strong>: Picture remains stored in directory and path retained in database.</li>
+              <li>If <strong>Dry</strong>, <strong>Flooded</strong>, or <strong>Others</strong>: Review flag is cleared and the picture file is permanently removed from storage.</li>
             </ul>
           </div>
 

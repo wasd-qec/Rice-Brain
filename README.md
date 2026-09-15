@@ -20,6 +20,7 @@ NNetwork/
 │   └── app.js                 # REST client, dynamic table rendering, keyboard shortcuts
 ├── web_server.py              # REST API server & lazy SQLite parcel database manager
 ├── farm_parcels.db            # SQLite database (lazily created upon first classification)
+├── parcel_pictures/           # Dedicated directory storing retained parcel photos on disk
 │
 ├── gui_app.py                 # Desktop Tkinter GUI: Dataset Curator & Training Manager
 ├── embed_coordinates.py       # Utility to embed/read standard EXIF GPS tags (Cambodia coordinates)
@@ -105,14 +106,14 @@ Open your browser to: **`http://localhost:5000`**
 - **Lazy Database Initialization**: The SQLite database file `farm_parcels.db` is **not** created until you click **"Classify Input Directory"** on the website for the first time.
 - **Coordinate as Primary Key**: Each parcel is indexed by GPS coordinates (`coordinate TEXT PRIMARY KEY`). Classifying new data with the same coordinate automatically updates the existing row without duplication.
 - **Automatic Picture Retention / Discard Rule**:
-  - If a parcel is **`Planted`** OR has **low confidence ($<80\%$)**: `flag = True`, and the JPEG image is saved as a BLOB in the database.
-  - Otherwise: `flag = False`, and `picture = NULL` (the picture is discarded to conserve database space).
+  - If a parcel is **`Planted`** OR has **low confidence ($<80\%$)**: `flag = True`, and the JPEG image is saved to the `parcel_pictures/` directory while storing its relative file path in the database (`picture_path`).
+  - Otherwise: `flag = False`, and `picture_path = NULL` (the picture is not stored to conserve disk and database space).
 - **Warning Alert**: If any parcel is flagged, a prominent warning banner is displayed.
 - **Operator Review Modal**:
-  - Clicking **"Inspect & Review"** loads the picture directly from the database.
+  - Clicking **"Inspect & Review"** loads the picture from `parcel_pictures/` storage via the API.
   - The operator can confirm or re-assign the category (`Dry`, `Flooded`, `Planted`, `Others`).
-  - **If confirmed as `Planted`**: Picture and review flag remain preserved.
-  - **If changed to `Dry`, `Flooded`, or `Others`**: Review flag is cleared and the picture is permanently deleted from the database.
+  - **If confirmed as `Planted`**: Picture file and review flag remain preserved.
+  - **If changed to `Dry`, `Flooded`, or `Others`**: Review flag is cleared and the picture file is permanently deleted from disk storage.
 
 ---
 
