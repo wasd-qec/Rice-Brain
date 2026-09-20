@@ -1,0 +1,125 @@
+================================================================================
+🌾 RICE FIELD AI - HOW TO INCREASE OR EXPAND OUTPUT
+================================================================================
+Reference guide on which functions, files, and numbers to change depending on
+what type of "more output" you need.
+
+================================================================================
+1. MORE OUTPUT CLASSES / CATEGORIES (e.g. 4 classes -> 5+ classes)
+================================================================================
+Use this when you want the AI to recognize additional field types
+(e.g., "Harvested", "Canal", "Fallow", or "Weeded" in addition to Dry/Flooded/Planted/Others).
+
+FILES TO CHANGE:
+  1. src/model.py
+     - Line 11: Add the new category name to the CLASSES list:
+         CLASSES = ["Dry", "Flooded", "Planted", "Others", "YourNewClass"]
+
+     - Lines 16-21: Add a display color to CLASS_COLORS:
+         CLASS_COLORS = {
+             "Dry": (218, 195, 60),
+             "Flooded": (30, 90, 180),
+             "Planted": (34, 180, 76),
+             "Others": (120, 80, 70),
+             "YourNewClass": (180, 50, 120),  # (R, G, B)
+         }
+
+     - Lines 55 & 107: Update the default number of classes:
+         In RiceFieldClassifier.__init__(self, num_classes=5, in_channels=3):
+         In build_classifier(num_classes=5):
+         (Change 4 -> 5 or whatever your new total number of classes is).
+
+  2. Dataset/
+     - Create a folder with the exact class name:
+         Dataset/YourNewClass/
+     - Place source images of that new class inside it.
+
+  3. Continuous Retraining / Overruled Mapping (Optional):
+     - In src/inference.py (lines 241-246, export_overruled_to_dataset),
+       add your new class to the mapping dictionary if you use the web review modal:
+         class_dir_map = {
+             "Dry": "Dry",
+             "Flooded": "Flood",
+             "Planted": "Planted",
+             "Others": "Others",
+             "YourNewClass": "YourNewClass"
+         }
+
+  4. Re-train the Model:
+     Run:
+         python train.py
+     (Weights will be saved to 'rice_field_classifier.pth').
+
+
+================================================================================
+2. MORE TRAINING SAMPLES GENERATED PER EPOCH (DATA VOLUME)
+================================================================================
+Use this to increase the synthetic crop patches produced per training epoch
+from your source images in Dataset/.
+
+FILES TO CHANGE:
+  1. src/train.py
+     - Lines 36-37 inside train_classifier():
+         train_loader, val_loader = create_dataloaders(
+             dataset_dir=dataset_dir,
+             batch_size=batch_size,
+             num_train_samples=1600,   # Default is 800 (Double or 4x this)
+             num_val_samples=320       # Default is 160 (Double or 4x this)
+         )
+
+  2. src/dataset.py
+     - Line 121 in create_dataloaders() function signature:
+         def create_dataloaders(dataset_dir="Dataset", batch_size=16,
+                                num_train_samples=800, num_val_samples=160):
+         Change 800 / 160 to your preferred defaults.
+
+
+================================================================================
+3. MORE TRAINING EPOCHS (LONGER TRAINING RUNS)
+================================================================================
+Use this to let the neural network learn across more iterations.
+
+FILES TO CHANGE:
+  1. train.py
+     - Line 10 inside train_classifier(...) call:
+         epochs=12   # Change 12 to 25, 30, or 50
+
+  2. src/train.py
+     - Line 21 in train_classifier() default arguments:
+         def train_classifier(..., epochs=12, ...):
+
+  * Or run directly from command line without changing code:
+      python src/train.py --epochs 30 --batch_size 16
+
+
+================================================================================
+4. MORE FLAGGED PARCELS SAVED TO DATABASE & PICTURE FOLDER
+================================================================================
+Use this if you want the system to flag and save pictures for more parcels
+into 'parcel_pictures/' and the SQLite database during web classification.
+
+FILES TO CHANGE:
+  1. web_server.py
+     - Line 393 inside do_POST():
+         is_flagged = (status == "Planted" or conf < 0.80)
+         Change 0.80 to 0.90 or 0.95 to capture more lower/medium confidence images.
+
+  2. src/inference.py
+     - Line 176 inside predict_directory():
+         "needs_review": bool(conf < 0.80),
+         Change 0.80 to a higher threshold (e.g. 0.90).
+
+  3. web/app.js (Frontend styling indicator)
+     - Line 127:
+         const isLow = p.confidence !== null && p.confidence < 0.80;
+         Change 0.80 to match your backend threshold.
+
+
+================================================================================
+5. LARGER BATCH SIZE (PARALLEL PROCESSING PER STEP)
+================================================================================
+FILES TO CHANGE:
+  1. train.py
+     - Line 11:
+         batch_size=16   # Increase to 32 or 64 if your GPU VRAM allows
+================================================================================
