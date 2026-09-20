@@ -242,7 +242,8 @@ def export_overruled_to_dataset(overruled_items, dataset_dir="Dataset"):
         "Dry": "Dry",
         "Flooded": "Flood",  # Dataset folder is named Flood
         "Planted": "Planted",
-        "Others": "Others"
+        "Others": "Others",
+        "New Cat": "New Cat"
     }
     
     copied = []

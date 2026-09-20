@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # The 4 target categories
-CLASSES = ["Dry", "Flooded", "Planted", "Others"]
+CLASSES = ["Dry", "Flooded", "Planted", "Others","New Cat"]
 
 CLASS_TO_IDX = {name: idx for idx, name in enumerate(CLASSES)}
 IDX_TO_CLASS = {idx: name for idx, name in enumerate(CLASSES)}
@@ -17,7 +17,8 @@ CLASS_COLORS = {
     "Dry": (218, 195, 60),      # Golden/Yellow for Dry
     "Flooded": (30, 90, 180),   # Blue for Flooded
     "Planted": (34, 180, 76),   # Green for Planted
-    "Others": (120, 80, 70)     # Dark neutral/brown for Others (non-field, trees, roads)
+    "Others": (120, 80, 70) ,   # Dark neutral/brown for Others (non-field, trees, roads)
+    "New cat": (120, 80, 70),
 }
 
 
@@ -52,7 +53,7 @@ class RiceFieldClassifier(nn.Module):
     Deep Residual CNN for classifying rice fields into 4 states:
     [Dry, Flooded, Planted, Others]
     """
-    def __init__(self, num_classes=4, in_channels=3):
+    def __init__(self, num_classes=5, in_channels=3):
         super().__init__()
         
         # Stem

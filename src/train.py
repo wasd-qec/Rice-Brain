@@ -18,7 +18,7 @@ from src.dataset import create_dataloaders
 
 def train_classifier(
     dataset_dir="Dataset",
-    epochs=12,
+    epochs=25,
     batch_size=16,
     learning_rate=1e-3,
     save_path="rice_field_classifier.pth"
@@ -35,7 +35,7 @@ def train_classifier(
         batch_size=batch_size,
         num_train_samples=800,
         num_val_samples=160
-    )
+    ) 
     
     # 2. Model
     model = build_classifier(num_classes=len(CLASSES)).to(device)
