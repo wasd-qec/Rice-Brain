@@ -1,24 +1,38 @@
 """
-src/model.py - 4-Class Neural Network Architecture for Rice Field State Classification
-Outputs: Dry, Flooded, Planted, Others.
+src/model.py - 9-Class Neural Network Architecture for Rice Field State Classification
+Outputs: Dry, Flooded, Planted, Others, Water, Wet, Green rice, Green weed, Straw.
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# The 4 target categories
-CLASSES = ["Dry", "Flooded", "Planted", "Others","New Cat"]
+# The 9 target categories
+CLASSES = [
+    "Dry",
+    "Flooded",
+    "Planted",
+    "Others",
+    "Water",
+    "Wet",
+    "Green rice",
+    "Green weed",
+    "Straw"
+]
 
 CLASS_TO_IDX = {name: idx for idx, name in enumerate(CLASSES)}
 IDX_TO_CLASS = {idx: name for idx, name in enumerate(CLASSES)}
 
 CLASS_COLORS = {
-    "Dry": (218, 195, 60),      # Golden/Yellow for Dry
-    "Flooded": (30, 90, 180),   # Blue for Flooded
-    "Planted": (34, 180, 76),   # Green for Planted
-    "Others": (120, 80, 70) ,   # Dark neutral/brown for Others (non-field, trees, roads)
-    "New cat": (120, 80, 70),
+    "Dry": (218, 195, 60),        # Golden/Yellow for Dry
+    "Flooded": (30, 90, 180),     # Blue for Flooded
+    "Planted": (34, 180, 76),     # Green for Planted
+    "Others": (120, 80, 70),      # Dark neutral/brown for Others
+    "Water": (0, 119, 182),       # Deep water blue
+    "Wet": (70, 130, 180),        # Muddy/slate blue for wet soil
+    "Green rice": (46, 204, 113), # Vivid lime/emerald green for rice crops
+    "Green weed": (34, 139, 34),  # Dark forest green for weeds
+    "Straw": (225, 190, 100),     # Golden straw / dry mulch
 }
 
 
@@ -50,10 +64,10 @@ class ResidualBlock(nn.Module):
 
 class RiceFieldClassifier(nn.Module):
     """
-    Deep Residual CNN for classifying rice fields into 4 states:
-    [Dry, Flooded, Planted, Others]
+    Deep Residual CNN for classifying rice fields into 9 states:
+    [Dry, Flooded, Planted, Others, Water, Wet, Green rice, Green weed, Straw]
     """
-    def __init__(self, num_classes=5, in_channels=3):
+    def __init__(self, num_classes=len(CLASSES), in_channels=3):
         super().__init__()
         
         # Stem
@@ -105,8 +119,8 @@ class RiceFieldClassifier(nn.Module):
         return logits
 
 
-def build_classifier(num_classes=4):
-    """Helper to instantiate the 4-class classifier."""
+def build_classifier(num_classes=len(CLASSES)):
+    """Helper to instantiate the rice field classifier."""
     return RiceFieldClassifier(num_classes=num_classes)
 
 

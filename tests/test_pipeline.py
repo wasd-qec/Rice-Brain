@@ -22,8 +22,8 @@ class TestRiceFieldClassifier(unittest.TestCase):
         model = build_classifier(num_classes=len(CLASSES))
         dummy = torch.randn(2, 3, 224, 224)
         out = model(dummy)
-        self.assertEqual(out.shape, (2, 4))
-        print("[PASS] Test 1: Core model forward pass valid. Output shape (2, 4).")
+        self.assertEqual(out.shape, (2, len(CLASSES)))
+        print(f"[PASS] Test 1: Core model forward pass valid. Output shape (2, {len(CLASSES)}).")
 
     def test_02_dry_field_prediction(self):
         dry_path = "Dataset/Dry/dry_01.png"
