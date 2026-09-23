@@ -28,18 +28,16 @@ class RiceFieldDataset(Dataset):
         
         self.class_images = {cls: [] for cls in CLASSES}
         
-        alias_map = {
-            "dry": "Dry",
+        # Support case-insensitive class folder matching and known aliases
+        class_map = {cls.lower(): cls for cls in CLASSES}
+        class_map.update({
             "flood": "Flooded",
-            "flooded": "Flooded",
-            "planted": "Planted",
-            "others": "Others",
             "other": "Others"
-        }
+        })
         
         if os.path.exists(dataset_dir):
             for dir_name in os.listdir(dataset_dir):
-                target_cls = alias_map.get(dir_name.lower())
+                target_cls = class_map.get(dir_name.lower())
                 if target_cls in self.class_images:
                     dir_path = os.path.join(dataset_dir, dir_name)
                     if os.path.isdir(dir_path):
@@ -65,7 +63,12 @@ class RiceFieldDataset(Dataset):
         cls_name = CLASSES[cls_idx]
         
         source_imgs = self.class_images[cls_name]
-        src_img = random.choice(source_imgs)
+        if len(source_imgs) == 0:
+            from src.model import CLASS_COLORS
+            color = CLASS_COLORS.get(cls_name, (128, 128, 128))
+            src_img = Image.new("RGB", (self.image_size, self.image_size), color=color)
+        else:
+            src_img = random.choice(source_imgs)
         
         w, h = src_img.size
         sz = self.image_size

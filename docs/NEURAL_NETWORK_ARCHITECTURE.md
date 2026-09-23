@@ -1,21 +1,26 @@
-# 🧠 Neural Network Architecture: 4-Class Rice Field Classifier
+# 🧠 Neural Network Architecture: 9-Class Rice Field Classifier
 
 > **File Reference:** [`src/model.py`](../src/model.py)  
 > **Model Class:** `RiceFieldClassifier`  
 > **Input:** RGB Satellite/Drone Image tensor of shape `(Batch, 3, 224, 224)`  
-> **Output:** 4 Class Probabilities for `[Dry, Flooded, Planted, Others]`
+> **Output:** 9 Class Probabilities for `[Dry, Flooded, Planted, Others, Water, Wet, Green rice, Green weed, Straw]`
 
 ---
 
 ## 📌 Executive Summary
 
-The Rice-Brain classifier takes a high-resolution agricultural photo (containing over **150,000 pixel values**) and condenses it through successive layers of mathematical transformations into **exactly 4 output numbers**. 
+The Rice-Brain classifier takes a high-resolution agricultural photo (containing over **150,000 pixel values**) and condenses it through successive layers of mathematical transformations into **9 output numbers**. 
 
-Each output number represents the probability that the given parcel of land belongs to one of four states:
+Each output number represents the probability that the given parcel of land belongs to one of nine states:
 1. **Dry (🏜️)**: Harvested, bare dry soil, or fallow field.
 2. **Flooded (💧)**: Standing water, mud preparations, waterlogged paddy.
 3. **Planted (🌿)**: Actively growing, green vegetative rice canopy.
 4. **Others (🌳)**: Trees, buildings, roads, canals, non-field terrain.
+5. **Water (🌊)**: Open water bodies, irrigation reservoirs, deep water.
+6. **Wet (🌧️)**: Moist/saturated soil without deep standing water.
+7. **Green rice (🌾)**: Established, healthy green rice crop canopy.
+8. **Green weed (🌱)**: Invasive or unwanted non-rice green vegetation/weeds.
+9. **Straw (🍂)**: Post-harvest straw residue, mulch, crop stubble.
 
 ```mermaid
 flowchart TD
@@ -43,15 +48,20 @@ flowchart TD
     end
 
     subgraph HEAD ["5. OUTPUT HEAD"]
-        FC["Linear Layer (512 → 4)\nCalculates 4 raw score logits"]
+        FC["Linear Layer (512 → 9)\nCalculates 9 raw score logits"]
         SM["Softmax Activation\nNormalizes logits into percentages summing to 100%"]
     end
 
-    subgraph OUTPUTS ["6. 4 OUTPUT PREDICTIONS"]
-        O1["Dry: 1.2%"]
-        O2["Flooded: 96.5%"]
-        O3["Planted: 1.8%"]
-        O4["Others: 0.5%"]
+    subgraph OUTPUTS ["6. 9 OUTPUT PREDICTIONS"]
+        O1["Dry: 0.5%"]
+        O2["Flooded: 1.2%"]
+        O3["Planted: 2.1%"]
+        O4["Others: 0.2%"]
+        O5["Water: 0.4%"]
+        O6["Wet: 1.0%"]
+        O7["Green rice: 92.8%"]
+        O8["Green weed: 1.3%"]
+        O9["Straw: 0.5%"]
     end
 
     IMG --> S1 --> S2 --> S3
@@ -61,6 +71,11 @@ flowchart TD
     SM --> O2
     SM --> O3
     SM --> O4
+    SM --> O5
+    SM --> O6
+    SM --> O7
+    SM --> O8
+    SM --> O9
 ```
 
 ---
@@ -142,31 +157,36 @@ $$\text{Output} = \text{ReLU}(\text{Conv2}(\text{Conv1}(x)) + x)$$
 
 ---
 
-### Step 6: Fully Connected Linear Layer (The 4 Outputs)
-* **Code:** `self.fc = nn.Linear(512, num_classes)` (where `num_classes = 4`)
-* **Shape change:** `[Batch_Size, 512]` $\to$ `[Batch_Size, 4]`
+### Step 6: Fully Connected Linear Layer (The 9 Outputs)
+* **Code:** `self.fc = nn.Linear(512, num_classes)` (where `num_classes = len(CLASSES) = 9`)
+* **Shape change:** `[Batch_Size, 512]` $\to$ `[Batch_Size, 9]`
 * **What happens:**  
-  Each of the 4 output nodes computes a weighted sum of the 512 high-level features plus a learnable bias term:
-  $$z_i = \sum_{j=1}^{512} W_{i,j} \cdot f_j + b_i \quad \text{for } i \in \{1, 2, 3, 4\}$$
+  Each of the 9 output nodes computes a weighted sum of the 512 high-level features plus a learnable bias term:
+  $$z_i = \sum_{j=1}^{512} W_{i,j} \cdot f_j + b_i \quad \text{for } i \in \{1, \dots, 9\}$$
 * **Why this is done:**  
   This is the decision maker. It projects the abstract visual features into class scores (logits):
   * $z_0$: Score for **Dry**
   * $z_1$: Score for **Flooded**
   * $z_2$: Score for **Planted**
   * $z_3$: Score for **Others**
+  * $z_4$: Score for **Water**
+  * $z_5$: Score for **Wet**
+  * $z_6$: Score for **Green rice**
+  * $z_7$: Score for **Green weed**
+  * $z_8$: Score for **Straw**
 
 ---
 
 ### Step 7: Softmax Function (Probabilities)
 * **Code:** `probabilities = torch.softmax(logits, dim=1)` *(inside inference)*
 * **Mathematical Formula:**
-  $$P(\text{Class } i) = \frac{e^{z_i}}{\sum_{k=1}^{4} e^{z_k}}$$
+  $$P(\text{Class } i) = \frac{e^{z_i}}{\sum_{k=1}^{9} e^{z_k}}$$
 * **What happens:**  
-  Raw numbers (which can be negative or positive, like `[-1.2, 4.8, 0.3, -2.1]`) are exponentiated and divided by their sum.
+  Raw numbers (which can be negative or positive) are exponentiated and divided by their sum.
 * **Why this is done:**  
   1. Guaranteed range between $0.0$ and $1.0$ ($0\%$ to $100\%$).
-  2. All 4 probabilities sum up to exactly $1.0$ ($100\%$).
-  3. Provides an interpretable **confidence score** (e.g. "98.2% confident this parcel is Flooded"). If the top probability is low (e.g., below 60%), the system or operator knows the parcel requires manual review.
+  2. All 9 probabilities sum up to exactly $1.0$ ($100\%$).
+  3. Provides an interpretable **confidence score** (e.g. "92.8% confident this parcel is Green rice"). If the top probability is low (e.g., below 60%), the system or operator knows the parcel requires manual review.
 
 ---
 
@@ -182,5 +202,5 @@ $$\text{Output} = \text{ReLU}(\text{Conv2}(\text{Conv1}(x)) + x)$$
 | **6** | Residual Stage 4 | `(256, 14, 14)` | `(512, 7, 7)` | Downsamples 2x; represents high-level domain concepts |
 | **7** | Global Average Pooling | `(512, 7, 7)` | `(512, 1, 1)` | Flattens 2D maps into 1D vector; provides translation invariance |
 | **8** | Dropout (30%) | `512` | `512` | Prevents overfitting and memorization of training photos |
-| **9** | Linear Layer | `512` | `4` | Maps 512 semantic features to the 4 target class logits |
-| **10** | Softmax | `4` | `4` | Converts logits into percentage confidence scores summing to 100% |
+| **9** | Linear Layer | `512` | `9` | Maps 512 semantic features to the 9 target class logits |
+| **10** | Softmax | `9` | `9` | Converts logits into percentage confidence scores summing to 100% |

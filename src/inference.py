@@ -72,11 +72,20 @@ class RiceFieldPredictor:
         
         if os.path.exists(model_path):
             checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
-            if "model_state_dict" in checkpoint:
-                self.model.load_state_dict(checkpoint["model_state_dict"])
-            else:
-                self.model.load_state_dict(checkpoint)
-            print(f"[+] Loaded model weights from: {model_path}")
+            state_dict = checkpoint["model_state_dict"] if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint else checkpoint
+            try:
+                self.model.load_state_dict(state_dict)
+                print(f"[+] Loaded model weights from: {model_path}")
+            except RuntimeError as e:
+                # Retain backbone weights and adapt head if number of classes changed
+                print(f"[!] Warning: Class mismatch when loading '{model_path}'. Adapting backbone and initializing classification head for {len(CLASSES)} classes.")
+                model_state = self.model.state_dict()
+                compatible_weights = {
+                    k: v for k, v in state_dict.items()
+                    if k in model_state and v.shape == model_state[k].shape
+                }
+                model_state.update(compatible_weights)
+                self.model.load_state_dict(model_state)
         else:
             print(f"[!] Warning: '{model_path}' not found. Using initialized model.")
             
@@ -243,7 +252,11 @@ def export_overruled_to_dataset(overruled_items, dataset_dir="Dataset"):
         "Flooded": "Flood",  # Dataset folder is named Flood
         "Planted": "Planted",
         "Others": "Others",
-        "New Cat": "New Cat"
+        "Water": "Water",
+        "Wet": "Wet",
+        "Green rice": "Green rice",
+        "Green weed": "Green weed",
+        "Straw": "Straw",
     }
     
     copied = []

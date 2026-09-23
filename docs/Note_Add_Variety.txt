@@ -5,49 +5,55 @@ Reference guide on which functions, files, and numbers to change depending on
 what type of "more output" you need.
 
 ================================================================================
-1. MORE OUTPUT CLASSES / CATEGORIES (e.g. 4 classes -> 5+ classes)
+1. MORE OUTPUT CLASSES / CATEGORIES (CURRENT: 9 CLASSES)
 ================================================================================
-Use this when you want the AI to recognize additional field types
-(e.g., "Harvested", "Canal", "Fallow", or "Weeded" in addition to Dry/Flooded/Planted/Others).
+Current 9 Target Classes:
+  1. Dry
+  2. Flooded
+  3. Planted
+  4. Others
+  5. Water
+  6. Wet
+  7. Green rice
+  8. Green weed
+  9. Straw
+
+HOW TO ADD / REMOVE / EDIT CLASSES:
+The system is now completely dynamic! You only need to touch src/model.py,
+create your Dataset folder, and retrain.
 
 FILES TO CHANGE:
   1. src/model.py
-     - Line 11: Add the new category name to the CLASSES list:
-         CLASSES = ["Dry", "Flooded", "Planted", "Others", "YourNewClass"]
+     - Update the CLASSES list:
+         CLASSES = [
+             "Dry", "Flooded", "Planted", "Others",
+             "Water", "Wet", "Green rice", "Green weed", "Straw",
+             "YourNewClass"
+         ]
 
-     - Lines 16-21: Add a display color to CLASS_COLORS:
+     - Add a display color to CLASS_COLORS:
          CLASS_COLORS = {
-             "Dry": (218, 195, 60),
-             "Flooded": (30, 90, 180),
-             "Planted": (34, 180, 76),
-             "Others": (120, 80, 70),
+             ...,
              "YourNewClass": (180, 50, 120),  # (R, G, B)
          }
 
-     - Lines 55 & 107: Update the default number of classes:
-         In RiceFieldClassifier.__init__(self, num_classes=5, in_channels=3):
-         In build_classifier(num_classes=5):
-         (Change 4 -> 5 or whatever your new total number of classes is).
+     NOTE: You NO LONGER need to manually edit class counts (num_classes)
+     in RiceFieldClassifier or build_classifier — they automatically use
+     len(CLASSES)!
 
   2. Dataset/
-     - Create a folder with the exact class name:
+     - Create a folder with your class name:
          Dataset/YourNewClass/
-     - Place source images of that new class inside it.
+     - Place source images (.jpg, .png) of that new class inside it.
+     - Note: src/dataset.py automatically maps folder names case-insensitively.
 
   3. Continuous Retraining / Overruled Mapping (Optional):
-     - In src/inference.py (lines 241-246, export_overruled_to_dataset),
-       add your new class to the mapping dictionary if you use the web review modal:
-         class_dir_map = {
-             "Dry": "Dry",
-             "Flooded": "Flood",
-             "Planted": "Planted",
-             "Others": "Others",
-             "YourNewClass": "YourNewClass"
-         }
+     - In src/inference.py (export_overruled_to_dataset), add any custom
+       folder aliases if needed. By default, it automatically uses the class name.
 
   4. Re-train the Model:
      Run:
-         python train.py
+         python -m src.train
      (Weights will be saved to 'rice_field_classifier.pth').
 
 
