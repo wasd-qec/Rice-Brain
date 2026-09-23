@@ -1,0 +1,5 @@
+storage is js for storing picture
+Unsorted is for preping the python gui to sort it into dataset
+dataset is use to train nn
+Input is where we will actually input picture to use
+parcel picture is where we store picture where the database knows the path to
