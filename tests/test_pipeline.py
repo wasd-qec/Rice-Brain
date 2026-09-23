@@ -1,5 +1,5 @@
 """
-test_pipeline.py - Automated verification and test suite for the 4-Class Rice Field Neural Network.
+test_pipeline.py - Automated verification and test suite for the 7-Class Rice Field Neural Network.
 """
 
 import os
@@ -108,13 +108,13 @@ class TestRiceFieldClassifier(unittest.TestCase):
                 "relative_directory": ".",
                 "full_path": os.path.abspath(sample_img_path),
                 "ai_status": "Dry",
-                "status": "Flooded",  # Overruled by operator to Flooded
+                "status": "Water",
                 "confidence": 0.65,
                 "needs_review": True,
                 "is_overruled": True,
-                "operator_label": "Flooded",
+                "operator_label": "Water",
                 "reviewed_at": "2026-09-05T14:15:00",
-                "probabilities": {"Dry": 0.35, "Flooded": 0.65, "Planted": 0.0, "Others": 0.0}
+                "probabilities": {c: (0.65 if c == "Water" else 0.35 / 6) for c in CLASSES}
             }
 
             # Test export to dataset
@@ -122,7 +122,7 @@ class TestRiceFieldClassifier(unittest.TestCase):
             self.assertEqual(len(copied), 1)
             copied_dest = copied[0][1]
             self.assertTrue(os.path.exists(copied_dest))
-            self.assertIn("Flood", copied_dest)  # Target directory should be Flood
+            self.assertIn("Water", copied_dest)
             print(f"[PASS] Test 7: Operator overrule & continuous training export verified -> Copied to '{copied_dest}'")
         finally:
             if os.path.exists(temp_dataset_dir):
@@ -131,7 +131,7 @@ class TestRiceFieldClassifier(unittest.TestCase):
 
 if __name__ == "__main__":
     print("="*60)
-    print("[*] Running 4-Class Rice Field Neural Network Test Suite...")
+    print("[*] Running 7-Class Rice Field Neural Network Test Suite...")
     print("="*60)
     unittest.main()
 

@@ -1,5 +1,5 @@
 """
-src/dataset.py - PyTorch Dataset and Data Augmentation Pipeline for 4 Rice Field States (Dry, Flooded, Planted, Others).
+src/dataset.py - PyTorch Dataset and Data Augmentation Pipeline for 7 Rice Field States (Dry, Water, Wet, Green rice, Green weed, Straw, Others).
 """
 
 import os
@@ -14,10 +14,13 @@ from src.model import CLASSES, CLASS_TO_IDX
 
 class RiceFieldDataset(Dataset):
     """
-    Dataset that loads satellite crops across the 4 classes:
+    Dataset that loads satellite crops across the 7 classes:
     - Dry
-    - Flooded
-    - Planted
+    - Water
+    - Wet
+    - Green rice
+    - Green weed
+    - Straw
     - Others
     """
     def __init__(self, dataset_dir="Dataset", image_size=224, num_samples=960, is_train=True):
@@ -29,9 +32,10 @@ class RiceFieldDataset(Dataset):
         self.class_images = {cls: [] for cls in CLASSES}
         
         # Support case-insensitive class folder matching and known aliases
-        class_map = {cls.lower(): cls for cls in CLASSES}
         class_map.update({
-            "flood": "Flooded",
+            "flood": "Water",
+            "flooded": "Water",
+            "planted": "Green rice",
             "other": "Others"
         })
         

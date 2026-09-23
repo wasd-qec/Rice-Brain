@@ -395,9 +395,15 @@ body {
 }
 
 .status-dry { background: rgba(249, 115, 22, 0.15); color: #fb923c; }
-.status-flooded { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
-.status-planted { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+.status-water { background: rgba(2, 136, 209, 0.15); color: #29b6f6; }
+.status-wet { background: rgba(92, 107, 192, 0.15); color: #7986cb; }
+.status-green-rice, .status-green_rice { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+.status-green-weed, .status-green_weed { background: rgba(27, 94, 32, 0.2); color: #81c784; }
+.status-straw { background: rgba(245, 127, 23, 0.15); color: #fbc02d; }
 .status-others { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+/* Legacy fallbacks */
+.status-flooded { background: rgba(2, 136, 209, 0.15); color: #29b6f6; }
+.status-planted { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
 
 .flag-badge {
   display: inline-flex;
@@ -622,11 +628,20 @@ body {
 .btn-dry { background: rgba(249, 115, 22, 0.15); color: #fb923c; border-color: rgba(249, 115, 22, 0.3); }
 .btn-dry:hover { background: #f97316; color: #fff; }
 
-.btn-flood { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: rgba(56, 189, 248, 0.3); }
-.btn-flood:hover { background: #0284c7; color: #fff; }
+.btn-water, .btn-flood { background: rgba(2, 136, 209, 0.15); color: #29b6f6; border-color: rgba(2, 136, 209, 0.3); }
+.btn-water:hover, .btn-flood:hover { background: #0288d1; color: #fff; }
 
-.btn-plant { background: rgba(34, 197, 94, 0.15); color: #4ade80; border-color: rgba(34, 197, 94, 0.3); }
-.btn-plant:hover { background: #16a34a; color: #fff; }
+.btn-wet { background: rgba(92, 107, 192, 0.15); color: #9fa8da; border-color: rgba(92, 107, 192, 0.3); }
+.btn-wet:hover { background: #5c6bc0; color: #fff; }
+
+.btn-green-rice, .btn-plant { background: rgba(34, 197, 94, 0.15); color: #4ade80; border-color: rgba(34, 197, 94, 0.3); }
+.btn-green-rice:hover, .btn-plant:hover { background: #16a34a; color: #fff; }
+
+.btn-green-weed { background: rgba(27, 94, 32, 0.2); color: #81c784; border-color: rgba(27, 94, 32, 0.35); }
+.btn-green-weed:hover { background: #2e7d32; color: #fff; }
+
+.btn-straw { background: rgba(245, 127, 23, 0.15); color: #fbc02d; border-color: rgba(245, 127, 23, 0.3); }
+.btn-straw:hover { background: #f57f17; color: #fff; }
 
 .btn-other { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border-color: rgba(148, 163, 184, 0.3); }
 .btn-other:hover { background: #475569; color: #fff; }

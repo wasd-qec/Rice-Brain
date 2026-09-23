@@ -6,12 +6,12 @@ Features:
 2. Manages 'parcels' table:
    [coordinate (PRIMARY KEY), picture_path (TEXT), date, status, flag, confidence]
 3. Classifies all images in 'Input/':
-   - If status == 'Planted' or confidence < 0.80 -> flag = 1 and saves clean JPEG into 'parcel_pictures/' directory with path in DB.
+   - If status in ('Green rice', 'Planted') or confidence < 0.80 -> flag = 1 and saves clean JPEG into 'parcel_pictures/' directory with path in DB.
    - Otherwise -> flag = 0 and picture_path = NULL (lose the picture).
    - If coordinate already exists, replaces the row (coordinate is primary key).
 4. Operator review:
-   - If decided as 'Planted' -> keep flag = 1 and keep picture in storage directory.
-   - If decided as 'Dry'/'Flooded'/'Others' -> set flag = 0, delete picture file from disk, and set picture_path = NULL.
+   - If decided as 'Green rice' / 'Planted' -> keep flag = 1 and keep picture in storage directory.
+   - If decided as other categories -> set flag = 0, delete picture file from disk, and set picture_path = NULL.
 """
 
 import os
@@ -389,8 +389,8 @@ class ParcelRequestHandler(BaseHTTPRequestHandler):
                 status = pred["status"]
                 conf = pred["confidence"]
 
-                # 4. Flag Condition: 'Planted' OR low confidence (< 0.80)
-                is_flagged = (status == "Planted" or conf < 0.80)
+                # 4. Flag Condition: 'Green rice' (Planted) OR low confidence (< 0.80)
+                is_flagged = (status in ("Green rice", "Planted") or conf < 0.80)
 
                 # Check if coordinate already has a picture saved
                 cur.execute("SELECT picture_path FROM parcels WHERE coordinate = ?", (coord_str,))
@@ -465,15 +465,15 @@ class ParcelRequestHandler(BaseHTTPRequestHandler):
             return
 
         # Review Rule:
-        # If operator chooses 'Planted': keep flag = 1 and keep picture path.
-        # If operator chooses another class ('Dry', 'Flooded', 'Others'): flag = 0, delete picture file from disk, picture_path = NULL.
-        if decision == "Planted":
+        # If operator chooses 'Green rice' (or legacy 'Planted'): keep flag = 1 and keep picture path.
+        # If operator chooses another class ('Dry', 'Water', 'Wet', 'Green weed', 'Straw', 'Others'): flag = 0, delete picture file from disk, picture_path = NULL.
+        if decision in ("Green rice", "Planted"):
             cur.execute("""
                 UPDATE parcels
-                SET status = 'Planted', flag = 1
+                SET status = ?, flag = 1
                 WHERE coordinate = ?;
-            """, (coordinate,))
-            msg = f"Confirmed '{coordinate}' as Planted. Picture and review flag retained in storage."
+            """, (decision, coordinate))
+            msg = f"Confirmed '{coordinate}' as {decision}. Picture and review flag retained in storage."
         else:
             if row["picture_path"]:
                 remove_parcel_picture(row["picture_path"])

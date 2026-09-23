@@ -51,10 +51,20 @@ function updateMetrics(statusData) {
   document.getElementById("val-flagged").textContent = statusData.flagged_count || 0;
 
   const s = statusData.summary || {};
-  document.getElementById("val-dry").textContent = s["Dry"] || 0;
-  document.getElementById("val-flooded").textContent = s["Flooded"] || 0;
-  document.getElementById("val-planted").textContent = s["Planted"] || 0;
-  document.getElementById("val-others").textContent = s["Others"] || 0;
+  const elDry = document.getElementById("val-dry");
+  if (elDry) elDry.textContent = s["Dry"] || 0;
+  const elWater = document.getElementById("val-water");
+  if (elWater) elWater.textContent = (s["Water"] || 0) + (s["Flooded"] || 0);
+  const elWet = document.getElementById("val-wet");
+  if (elWet) elWet.textContent = s["Wet"] || 0;
+  const elGreenRice = document.getElementById("val-green-rice");
+  if (elGreenRice) elGreenRice.textContent = (s["Green rice"] || 0) + (s["Planted"] || 0);
+  const elGreenWeed = document.getElementById("val-green-weed");
+  if (elGreenWeed) elGreenWeed.textContent = s["Green weed"] || 0;
+  const elStraw = document.getElementById("val-straw");
+  if (elStraw) elStraw.textContent = s["Straw"] || 0;
+  const elOthers = document.getElementById("val-others");
+  if (elOthers) elOthers.textContent = s["Others"] || 0;
 
   const cardFlagged = document.getElementById("card-flagged");
   if (statusData.flagged_count > 0) {
@@ -121,7 +131,7 @@ function renderTable() {
   }
 
   tbody.innerHTML = filtered.map(p => {
-    const statusClass = `status-${p.status.toLowerCase()}`;
+    const statusClass = `status-${p.status.toLowerCase().replace(/\s+/g, '-')}`;
     const statusIcon = getStatusIcon(p.status);
     const confText = p.confidence !== null ? `${(p.confidence * 100).toFixed(1)}%` : "--";
     const isLow = p.confidence !== null && p.confidence < 0.80;
@@ -169,9 +179,15 @@ function renderTable() {
 function getStatusIcon(status) {
   switch (status) {
     case "Dry": return "🏜️";
-    case "Flooded": return "💧";
-    case "Planted": return "🌿";
+    case "Water": return "💧";
+    case "Wet": return "🌧️";
+    case "Green rice": return "🌾";
+    case "Green weed": return "🌿";
+    case "Straw": return "🍂";
     case "Others": return "🌳";
+    // Legacy aliases
+    case "Flooded": return "💧";
+    case "Planted": return "🌾";
     default: return "📦";
   }
 }
@@ -260,10 +276,16 @@ function bindKeyboardShortcuts() {
       } else if (e.key === "1") {
         submitDecision("Dry");
       } else if (e.key === "2") {
-        submitDecision("Flooded");
+        submitDecision("Water");
       } else if (e.key === "3") {
-        submitDecision("Planted");
+        submitDecision("Wet");
       } else if (e.key === "4") {
+        submitDecision("Green rice");
+      } else if (e.key === "5") {
+        submitDecision("Green weed");
+      } else if (e.key === "6") {
+        submitDecision("Straw");
+      } else if (e.key === "7") {
         submitDecision("Others");
       }
     }

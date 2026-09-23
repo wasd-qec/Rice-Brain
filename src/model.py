@@ -1,23 +1,21 @@
 """
-src/model.py - 9-Class Neural Network Architecture for Rice Field State Classification
-Outputs: Dry, Flooded, Planted, Others, Water, Wet, Green rice, Green weed, Straw.
+src/model.py - 7-Class Neural Network Architecture for Rice Field State Classification
+Outputs: Dry, Water, Wet, Green rice, Green weed, Straw, Others.
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# The 9 target categories
+# The 7 target categories in Dataset/
 CLASSES = [
     "Dry",
-    "Flooded",
-    "Planted",
-    "Others",
     "Water",
     "Wet",
     "Green rice",
     "Green weed",
-    "Straw"
+    "Straw",
+    "Others"
 ]
 
 CLASS_TO_IDX = {name: idx for idx, name in enumerate(CLASSES)}
@@ -25,14 +23,12 @@ IDX_TO_CLASS = {idx: name for idx, name in enumerate(CLASSES)}
 
 CLASS_COLORS = {
     "Dry": (218, 195, 60),        # Golden/Yellow for Dry
-    "Flooded": (30, 90, 180),     # Blue for Flooded
-    "Planted": (34, 180, 76),     # Green for Planted
-    "Others": (120, 80, 70),      # Dark neutral/brown for Others
     "Water": (0, 119, 182),       # Deep water blue
     "Wet": (70, 130, 180),        # Muddy/slate blue for wet soil
     "Green rice": (46, 204, 113), # Vivid lime/emerald green for rice crops
     "Green weed": (34, 139, 34),  # Dark forest green for weeds
     "Straw": (225, 190, 100),     # Golden straw / dry mulch
+    "Others": (120, 80, 70),      # Dark neutral/brown for Others
 }
 
 
@@ -64,8 +60,8 @@ class ResidualBlock(nn.Module):
 
 class RiceFieldClassifier(nn.Module):
     """
-    Deep Residual CNN for classifying rice fields into 9 states:
-    [Dry, Flooded, Planted, Others, Water, Wet, Green rice, Green weed, Straw]
+    Deep Residual CNN for classifying rice fields into 7 states:
+    [Dry, Water, Wet, Green rice, Green weed, Straw, Others]
     """
     def __init__(self, num_classes=len(CLASSES), in_channels=3):
         super().__init__()

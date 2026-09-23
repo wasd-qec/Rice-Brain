@@ -1,5 +1,5 @@
 """
-src/train.py - Training pipeline for 4-Class Rice Field Neural Network on GPU (Dry, Flooded, Planted, Others).
+src/train.py - Training pipeline for 7-Class Rice Field Neural Network on GPU (Dry, Water, Wet, Green rice, Green weed, Straw, Others).
 """
 
 import os
