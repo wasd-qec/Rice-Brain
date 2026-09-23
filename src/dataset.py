@@ -32,7 +32,10 @@ class RiceFieldDataset(Dataset):
         self.class_images = {cls: [] for cls in CLASSES}
         
         # Support case-insensitive class folder matching and known aliases
+        class_map = {cls.lower(): cls for cls in CLASSES}
         class_map.update({
+            "green_rice": "Green rice",
+            "green_weed": "Green weed",
             "flood": "Water",
             "flooded": "Water",
             "planted": "Green rice",
