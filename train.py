@@ -1,5 +1,5 @@
 """
-train.py - Root training runner for the 4-Class Rice Field State Neural Network (Dry, Flooded, Planted, Others).
+train.py - Root training runner for the 7-Class Rice Field State Neural Network (Dry, Water, Wet, Green rice, Green weed, Straw, Others).
 """
 
 from src.train import train_classifier

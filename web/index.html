@@ -58,23 +58,47 @@
           <span class="metric-title">🏜️ Dry</span>
         </div>
         <div class="metric-value" id="val-dry">0</div>
-        <div class="metric-sub">Harvested / Bare soil</div>
+        <div class="metric-sub">Dry / Bare soil</div>
       </div>
 
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">💧 Flooded</span>
+          <span class="metric-title">💧 Water</span>
         </div>
-        <div class="metric-value" id="val-flooded">0</div>
-        <div class="metric-sub">Water prepared</div>
+        <div class="metric-value" id="val-water">0</div>
+        <div class="metric-sub">Flooded / Standing water</div>
       </div>
 
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">🌿 Planted</span>
+          <span class="metric-title">🌧️ Wet</span>
         </div>
-        <div class="metric-value" id="val-planted">0</div>
-        <div class="metric-sub">Green rice growing</div>
+        <div class="metric-value" id="val-wet">0</div>
+        <div class="metric-sub">Wet muddy soil</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">🌾 Green rice</span>
+        </div>
+        <div class="metric-value" id="val-green-rice">0</div>
+        <div class="metric-sub">Rice crop growing</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">🌿 Green weed</span>
+        </div>
+        <div class="metric-value" id="val-green-weed">0</div>
+        <div class="metric-sub">Weed vegetation</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">🍂 Straw</span>
+        </div>
+        <div class="metric-value" id="val-straw">0</div>
+        <div class="metric-sub">Dry stubble / mulch</div>
       </div>
 
       <div class="metric-card">
@@ -82,7 +106,7 @@
           <span class="metric-title">🌳 Others</span>
         </div>
         <div class="metric-value" id="val-others">0</div>
-        <div class="metric-sub">Roads, canals, houses</div>
+        <div class="metric-sub">Canals, roads, trees</div>
       </div>
     </section>
 
@@ -112,8 +136,11 @@
               <option value="all">All Statuses</option>
               <option value="flagged">⚠️ Flagged Only</option>
               <option value="Dry">🏜️ Dry</option>
-              <option value="Flooded">💧 Flooded</option>
-              <option value="Planted">🌿 Planted</option>
+              <option value="Water">💧 Water</option>
+              <option value="Wet">🌧️ Wet</option>
+              <option value="Green rice">🌾 Green rice</option>
+              <option value="Green weed">🌿 Green weed</option>
+              <option value="Straw">🍂 Straw</option>
               <option value="Others">🌳 Others</option>
             </select>
           </div>
@@ -189,25 +216,34 @@
           <div class="rule-callout">
             <p><strong>Curation Rules:</strong></p>
             <ul>
-              <li>If <strong>Planted</strong>: Picture remains stored in directory and path retained in database.</li>
-              <li>If <strong>Dry</strong>, <strong>Flooded</strong>, or <strong>Others</strong>: Review flag is cleared and the picture file is permanently removed from storage.</li>
+              <li>If <strong>Green rice</strong> (Planted): Picture remains stored in directory and path retained in database.</li>
+              <li>If <strong>other categories</strong>: Review flag is cleared and the picture file is permanently removed from storage.</li>
             </ul>
           </div>
 
           <div class="decision-group">
-            <label class="decision-title">Select Operator Decision:</label>
+            <label class="decision-title">Select Operator Decision [1-7]:</label>
             <div class="decision-buttons">
               <button class="btn btn-choice btn-dry" onclick="submitDecision('Dry')">
-                🏜️ Dry
+                [1] 🏜️ Dry
               </button>
-              <button class="btn btn-choice btn-flood" onclick="submitDecision('Flooded')">
-                💧 Flooded
+              <button class="btn btn-choice btn-water" onclick="submitDecision('Water')">
+                [2] 💧 Water
               </button>
-              <button class="btn btn-choice btn-plant" onclick="submitDecision('Planted')">
-                🌿 Planted (Keep Picture)
+              <button class="btn btn-choice btn-wet" onclick="submitDecision('Wet')">
+                [3] 🌧️ Wet
+              </button>
+              <button class="btn btn-choice btn-green-rice" onclick="submitDecision('Green rice')">
+                [4] 🌾 Green rice (Keep Picture)
+              </button>
+              <button class="btn btn-choice btn-green-weed" onclick="submitDecision('Green weed')">
+                [5] 🌿 Green weed
+              </button>
+              <button class="btn btn-choice btn-straw" onclick="submitDecision('Straw')">
+                [6] 🍂 Straw
               </button>
               <button class="btn btn-choice btn-other" onclick="submitDecision('Others')">
-                🌳 Others
+                [7] 🌳 Others
               </button>
             </div>
           </div>

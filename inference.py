@@ -1,5 +1,5 @@
 """
-inference.py - Root inference script for predicting the 4 rice field states (Dry, Flooded, Planted, Others).
+inference.py - Root inference script for predicting the 7 rice field states (Dry, Water, Wet, Green rice, Green weed, Straw, Others).
 Supports single image prediction or recursive batch classification of any image placed in Input/ (and subdirectories).
 """
 
@@ -10,7 +10,7 @@ from src.inference import RiceFieldPredictor, predict_field_state, predict_input
 from src.model import CLASSES
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Predict Rice Field State (Dry, Flooded, Planted, Others).")
+    parser = argparse.ArgumentParser(description="Predict Rice Field State (Dry, Water, Wet, Green rice, Green weed, Straw, Others).")
     parser.add_argument("--image", type=str, default=None, help="Path to a single image to classify")
     parser.add_argument("--dir", "--input_dir", dest="input_dir", type=str, default=None, help="Directory to scan recursively (default: Input/)")
     parser.add_argument("--model", type=str, default="rice_field_classifier.pth", help="Model checkpoint path")

@@ -2,13 +2,16 @@
 gui_app.py - Rice Field AI: Dataset Curator & Training Manager.
 
 Allows users to:
-1. View and sort images from an 'Unsorted/' pool into 4 categories:
+1. View and sort images from an 'Unsorted/' pool into 7 categories:
    - Dry -> Dataset/Dry/
-   - Flooded -> Dataset/Flood/
-   - Planted -> Dataset/Planted/
+   - Water -> Dataset/Water/
+   - Wet -> Dataset/Wet/
+   - Green rice -> Dataset/Green rice/
+   - Green weed -> Dataset/Green weed/
+   - Straw -> Dataset/Straw/
    - Others -> Dataset/Others/
 2. View and edit sorted images to quickly fix any mis-sorted files.
-3. Use keyboard shortcuts [1-4] to sort or re-sort instantly with auto-advance.
+3. Use keyboard shortcuts [1-7] to sort or re-sort instantly with auto-advance.
 4. View image preview, EXIF GPS coordinates, and AI pre-label suggestions.
 5. Launch model training (python train.py) directly with live background progress.
 """
@@ -33,18 +36,39 @@ from src.train import train_classifier
 # Mapping from class name to folder in Dataset/
 CLASS_TO_FOLDER = {
     "Dry": "Dry",
-    "Flooded": "Flood",
-    "Planted": "Planted",
+    "Water": "Water",
+    "Wet": "Wet",
+    "Green rice": "Green rice",
+    "Green weed": "Green weed",
+    "Straw": "Straw",
     "Others": "Others",
 }
 
 FOLDER_TO_CLASS = {
     "dry": "Dry",
-    "flood": "Flooded",
-    "flooded": "Flooded",
-    "planted": "Planted",
+    "water": "Water",
+    "wet": "Wet",
+    "green rice": "Green rice",
+    "green_rice": "Green rice",
+    "green weed": "Green weed",
+    "green_weed": "Green weed",
+    "straw": "Straw",
     "others": "Others",
     "other": "Others",
+    # Legacy fallbacks
+    "flood": "Water",
+    "flooded": "Water",
+    "planted": "Green rice",
+}
+
+CLASS_ICONS = {
+    "Dry": "🏜️",
+    "Water": "💧",
+    "Wet": "🌧️",
+    "Green rice": "🌾",
+    "Green weed": "🌿",
+    "Straw": "🍂",
+    "Others": "🌳",
 }
 
 VALID_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
@@ -61,7 +85,7 @@ class DatasetCuratorApp:
         self.dataset_dir = os.path.abspath("Dataset")
         os.makedirs(self.unsorted_dir, exist_ok=True)
         os.makedirs(self.dataset_dir, exist_ok=True)
-        for sub in ["Dry", "Flood", "Planted", "Others"]:
+        for sub in CLASS_TO_FOLDER.values():
             os.makedirs(os.path.join(self.dataset_dir, sub), exist_ok=True)
 
         # AI Predictor (lazy-loaded or optional)
@@ -69,7 +93,7 @@ class DatasetCuratorApp:
         self._init_predictor()
 
         # State data
-        self.current_view_mode = "unsorted"  # 'unsorted', 'all_sorted', 'Dry', 'Flooded', 'Planted', 'Others'
+        self.current_view_mode = "unsorted"  # 'unsorted', 'all_sorted', or any class in CLASS_TO_FOLDER
         self.items_data = []  # List of dicts currently displayed in the table
         self.item_map = {}    # Tree item id -> item dict
         self.current_inspected_item = None
@@ -79,15 +103,13 @@ class DatasetCuratorApp:
         # Live Counts
         self.counts = {
             "Unsorted": 0,
-            "Dry": 0,
-            "Flooded": 0,
-            "Planted": 0,
-            "Others": 0,
             "Total_Sorted": 0,
         }
+        for cname in CLASS_TO_FOLDER:
+            self.counts[cname] = 0
 
         # UI Variables
-        self.status_var = tk.StringVar(value="Ready. Select an image or press [1-4] to sort.")
+        self.status_var = tk.StringVar(value="Ready. Select an image or press [1-7] to sort.")
         self.var_auto_advance = tk.BooleanVar(value=True)
         self.var_ai_assist = tk.BooleanVar(value=True)
 
@@ -136,26 +158,33 @@ class DatasetCuratorApp:
         self.stats_box.pack(anchor="w", pady=(6, 0), fill=tk.X)
 
         self.stat_labels = {}
-        badges = [
-            ("Unsorted", "📥 Unsorted: 0", "#ff9800"),
-            ("Dry", "🏜️ Dry: 0", "#e65100"),
-            ("Flooded", "💧 Flooded: 0", "#0288d1"),
-            ("Planted", "🌿 Planted: 0", "#2e7d32"),
-            ("Others", "🌳 Others: 0", "#546e7a"),
-            ("Total_Sorted", "📊 Total Sorted: 0", "#ffffff"),
-        ]
-        for key, text, color in badges:
+        badge_colors = {
+            "Unsorted": "#ff9800",
+            "Dry": "#e65100",
+            "Water": "#0288d1",
+            "Wet": "#3949ab",
+            "Green rice": "#2e7d32",
+            "Green weed": "#1b5e20",
+            "Straw": "#f57f17",
+            "Others": "#546e7a",
+            "Total_Sorted": "#ffffff",
+        }
+        badges = [("Unsorted", "📥 Unsorted: 0")]
+        badges += [(cname, f"{CLASS_ICONS[cname]} {cname}: 0") for cname in CLASS_TO_FOLDER]
+        badges.append(("Total_Sorted", "📊 Total Sorted: 0"))
+
+        for key, text in badges:
             lbl = tk.Label(
                 self.stats_box,
                 text=text,
-                font=("Helvetica", 10, "bold"),
+                font=("Helvetica", 9, "bold"),
                 bg="#263238",
-                fg=color,
-                padx=8,
-                pady=3,
+                fg=badge_colors.get(key, "#ffffff"),
+                padx=6,
+                pady=2,
                 relief=tk.FLAT
             )
-            lbl.pack(side=tk.LEFT, padx=(0, 8))
+            lbl.pack(side=tk.LEFT, padx=(0, 5))
             self.stat_labels[key] = lbl
 
         # 2. View Mode Navigation & Settings Bar
@@ -166,16 +195,15 @@ class DatasetCuratorApp:
 
         self.btn_views = {}
         modes = [
-            ("unsorted", "📥 Unsorted Pool"),
-            ("all_sorted", "📁 All Sorted Dataset"),
-            ("Dry", "🏜️ Dry"),
-            ("Flooded", "💧 Flooded"),
-            ("Planted", "🌿 Planted"),
-            ("Others", "🌳 Others"),
+            ("unsorted", "📥 Unsorted"),
+            ("all_sorted", "📁 All Sorted"),
         ]
+        for cname in CLASS_TO_FOLDER:
+            modes.append((cname, f"{CLASS_ICONS[cname]} {cname}"))
+
         for m_id, m_text in modes:
             b = ttk.Button(nav_bar, text=m_text, command=lambda m=m_id: self.switch_view(m))
-            b.pack(side=tk.LEFT, padx=2)
+            b.pack(side=tk.LEFT, padx=1)
             self.btn_views[m_id] = b
 
         ttk.Separator(nav_bar, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=2)
@@ -241,8 +269,11 @@ class DatasetCuratorApp:
         # Color tags
         self.tree.tag_configure("tag_unsorted", foreground="#e65100", font=("Helvetica", 9, "bold"))
         self.tree.tag_configure("tag_dry", foreground="#bf360c")
-        self.tree.tag_configure("tag_flooded", foreground="#0277bd")
-        self.tree.tag_configure("tag_planted", foreground="#2e7d32")
+        self.tree.tag_configure("tag_water", foreground="#0288d1")
+        self.tree.tag_configure("tag_wet", foreground="#3949ab")
+        self.tree.tag_configure("tag_green_rice", foreground="#2e7d32")
+        self.tree.tag_configure("tag_green_weed", foreground="#1b5e20")
+        self.tree.tag_configure("tag_straw", foreground="#f57f17")
         self.tree.tag_configure("tag_others", foreground="#455a64")
 
         vsb = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.tree.yview)
@@ -283,18 +314,26 @@ class DatasetCuratorApp:
         self.lbl_preview_ai.pack(fill=tk.X, pady=1)
 
         # Fast Move Actions Frame
-        action_group = ttk.LabelFrame(inspector_frame, text="⚡ Quick Sort / Re-assign", padding=8)
+        action_group = ttk.LabelFrame(inspector_frame, text="⚡ Quick Sort / Re-assign [1-7]", padding=8)
         action_group.pack(fill=tk.X, side=tk.TOP, pady=(0, 6))
 
         btn_grid = ttk.Frame(action_group)
         btn_grid.pack(fill=tk.X)
-
-        ttk.Button(btn_grid, text="[1] 🏜️ Dry", command=lambda: self.move_current_to_class("Dry")).grid(row=0, column=0, padx=2, pady=2, sticky="ew")
-        ttk.Button(btn_grid, text="[2] 💧 Flooded", command=lambda: self.move_current_to_class("Flooded")).grid(row=0, column=1, padx=2, pady=2, sticky="ew")
-        ttk.Button(btn_grid, text="[3] 🌿 Planted", command=lambda: self.move_current_to_class("Planted")).grid(row=1, column=0, padx=2, pady=2, sticky="ew")
-        ttk.Button(btn_grid, text="[4] 🌳 Others", command=lambda: self.move_current_to_class("Others")).grid(row=1, column=1, padx=2, pady=2, sticky="ew")
         btn_grid.columnconfigure(0, weight=1)
         btn_grid.columnconfigure(1, weight=1)
+
+        class_keys = list(CLASS_TO_FOLDER.keys())
+        for idx, cname in enumerate(class_keys, start=1):
+            icon = CLASS_ICONS.get(cname, "")
+            row = (idx - 1) // 2
+            col = (idx - 1) % 2
+            colspan = 2 if (idx == len(class_keys) and len(class_keys) % 2 == 1) else 1
+            btn = ttk.Button(
+                btn_grid,
+                text=f"[{idx}] {icon} {cname}",
+                command=lambda c=cname: self.move_current_to_class(c)
+            )
+            btn.grid(row=row, column=col, columnspan=colspan, padx=2, pady=2, sticky="ew")
 
         ttk.Button(
             action_group,
@@ -302,20 +341,19 @@ class DatasetCuratorApp:
             command=self.move_current_to_unsorted
         ).pack(fill=tk.X, pady=(4, 0))
 
-        # Vertical Tips & Controls Card (Item 5 in user note)
+        # Vertical Tips & Controls Card
         tips_group = ttk.LabelFrame(inspector_frame, text="💡 Quick Tips & Controls", padding=8)
         tips_group.pack(fill=tk.BOTH, expand=True, side=tk.TOP, pady=(2, 0))
 
-        tips_text = (
-            "• Press [1]  ->  Move to Dry\n"
-            "• Press [2]  ->  Move to Flooded\n"
-            "• Press [3]  ->  Move to Planted\n"
-            "• Press [4]  ->  Move to Others\n"
-            "• Press [U]  ->  Move to Unsorted\n"
-            "• Press [Space] -> Accept AI Suggestion\n"
-            "• Press [↑ / ↓] -> Navigate Images\n"
+        tips_lines = [f"• Press [{idx}]  ->  Move to {cname}" for idx, cname in enumerate(class_keys, start=1)]
+        tips_lines.extend([
+            "• Press [U]  ->  Move to Unsorted",
+            "• Press [Space] -> Accept AI Suggestion",
+            "• Press [↑ / ↓] -> Navigate Images",
             "• Press [Del]   -> Delete Image"
-        )
+        ])
+        tips_text = "\n".join(tips_lines)
+
         lbl_tips = tk.Label(
             tips_group,
             text=tips_text,
@@ -331,10 +369,9 @@ class DatasetCuratorApp:
         lbl_tips.pack(fill=tk.BOTH, expand=True)
 
     def _bind_shortcuts(self):
-        self.root.bind("<Key-1>", lambda e: self.move_current_to_class("Dry"))
-        self.root.bind("<Key-2>", lambda e: self.move_current_to_class("Flooded"))
-        self.root.bind("<Key-3>", lambda e: self.move_current_to_class("Planted"))
-        self.root.bind("<Key-4>", lambda e: self.move_current_to_class("Others"))
+        class_keys = list(CLASS_TO_FOLDER.keys())
+        for idx, cname in enumerate(class_keys, start=1):
+            self.root.bind(f"<Key-{idx}>", lambda e, c=cname: self.move_current_to_class(c))
         self.root.bind("<Key-u>", lambda e: self.move_current_to_unsorted())
         self.root.bind("<Key-U>", lambda e: self.move_current_to_unsorted())
         self.root.bind("<space>", lambda e: self._on_accept_ai_guess())
@@ -359,15 +396,18 @@ class DatasetCuratorApp:
         self.counts["Total_Sorted"] = total_sorted
 
         # Update Top Badges
-        self.stat_labels["Unsorted"].config(text=f"📥 Unsorted: {self.counts['Unsorted']}")
-        self.stat_labels["Dry"].config(text=f"🏜️ Dry: {self.counts['Dry']}")
-        self.stat_labels["Flooded"].config(text=f"💧 Flooded: {self.counts['Flooded']}")
-        self.stat_labels["Planted"].config(text=f"🌿 Planted: {self.counts['Planted']}")
-        self.stat_labels["Others"].config(text=f"🌳 Others: {self.counts['Others']}")
-        self.stat_labels["Total_Sorted"].config(text=f"📊 Total Sorted: {self.counts['Total_Sorted']}")
+        self._update_stat_badges()
 
         # 2. Populate table for active view
         self._load_active_view_items()
+
+    def _update_stat_badges(self):
+        self.stat_labels["Unsorted"].config(text=f"📥 Unsorted: {self.counts['Unsorted']}")
+        for cname in CLASS_TO_FOLDER:
+            if cname in self.stat_labels:
+                icon = CLASS_ICONS.get(cname, "")
+                self.stat_labels[cname].config(text=f"{icon} {cname}: {self.counts[cname]}")
+        self.stat_labels["Total_Sorted"].config(text=f"📊 Total Sorted: {self.counts['Total_Sorted']}")
 
     def switch_view(self, mode):
         self.current_view_mode = mode
@@ -468,7 +508,7 @@ class DatasetCuratorApp:
                 itm["dimensions"] = (0, 0)
 
             # Row tag
-            tag = "tag_unsorted" if cat == "Unsorted" else f"tag_{cat.lower()}"
+            tag = "tag_unsorted" if cat == "Unsorted" else f"tag_{cat.lower().replace(' ', '_')}"
 
             node_id = self.tree.insert("", tk.END, values=(fname, cat, ai_str, gps_str, dim_str), tags=(tag,))
             self.item_map[node_id] = itm
@@ -521,7 +561,7 @@ class DatasetCuratorApp:
         cat = itm.get("category", "Unsorted")
         color_rgb = CLASS_COLORS.get(cat, (120, 120, 120)) if cat != "Unsorted" else (230, 81, 0)
         hex_bg = '#{:02x}{:02x}{:02x}'.format(*color_rgb)
-        fg_col = "#ffffff" if cat in ["Flooded", "Others", "Unsorted"] else "#111111"
+        fg_col = "#ffffff" if cat in ["Water", "Wet", "Others", "Green weed", "Unsorted"] else "#111111"
         self.lbl_preview_cat.config(text=f"Category: {cat.upper()}", bg=hex_bg, fg=fg_col)
 
         # GPS
@@ -641,12 +681,7 @@ class DatasetCuratorApp:
             self.counts["Total_Sorted"] += 1
 
         # Update badge labels
-        self.stat_labels["Unsorted"].config(text=f"📥 Unsorted: {self.counts['Unsorted']}")
-        self.stat_labels["Dry"].config(text=f"🏜️ Dry: {self.counts['Dry']}")
-        self.stat_labels["Flooded"].config(text=f"💧 Flooded: {self.counts['Flooded']}")
-        self.stat_labels["Planted"].config(text=f"🌿 Planted: {self.counts['Planted']}")
-        self.stat_labels["Others"].config(text=f"🌳 Others: {self.counts['Others']}")
-        self.stat_labels["Total_Sorted"].config(text=f"📊 Total Sorted: {self.counts['Total_Sorted']}")
+        self._update_stat_badges()
 
         # Advance or remove row
         selected = self.tree.selection()
@@ -686,7 +721,7 @@ class DatasetCuratorApp:
             itm["category"] = new_cat
             itm["full_path"] = new_path
             itm["filename"] = new_fname
-            tag = "tag_unsorted" if new_cat == "Unsorted" else f"tag_{new_cat.lower()}"
+            tag = "tag_unsorted" if new_cat == "Unsorted" else f"tag_{new_cat.lower().replace(' ', '_')}"
 
             values = list(self.tree.item(curr_node, "values"))
             values[0] = new_fname
@@ -766,21 +801,18 @@ class DatasetCuratorApp:
             return
 
         # Check that we have images in each class
-        for cname, folder in CLASS_TO_FOLDER.items():
-            if self.counts[cname] == 0:
+        for cname in CLASS_TO_FOLDER:
+            if self.counts.get(cname, 0) == 0:
                 messagebox.showwarning(
                     "Missing Class Data",
                     f"Class '{cname}' currently has 0 images!\nPlease sort at least a few images into '{cname}' before training."
                 )
                 return
 
+        samples_lines = "\n".join(f"  - {c}: {self.counts.get(c, 0)}" for c in CLASS_TO_FOLDER)
         msg = (
             f"Start retraining the Rice Field AI Neural Network now?\n\n"
-            f"Current Dataset Samples:\n"
-            f"  - Dry: {self.counts['Dry']}\n"
-            f"  - Flooded: {self.counts['Flooded']}\n"
-            f"  - Planted: {self.counts['Planted']}\n"
-            f"  - Others: {self.counts['Others']}\n"
+            f"Current Dataset Samples:\n{samples_lines}\n"
             f"  Total: {self.counts['Total_Sorted']}\n\n"
             f"Training runs in the background. You can continue sorting while it trains."
         )

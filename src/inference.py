@@ -1,5 +1,5 @@
 """
-src/inference.py - Inference Engine and API for 4-Class Rice Field State Classification (Dry, Flooded, Planted, Others).
+src/inference.py - Inference Engine and API for 7-Class Rice Field State Classification (Dry, Water, Wet, Green rice, Green weed, Straw, Others).
 """
 
 import os
@@ -59,8 +59,8 @@ def extract_image_gps(img_path):
 class RiceFieldPredictor:
     """
     Inference Engine that loads the trained PyTorch neural network
-    and classifies rice fields into the 4 target states:
-    ['Dry', 'Flooded', 'Planted', 'Others']
+    and classifies rice fields into the 7 target states:
+    ['Dry', 'Water', 'Wet', 'Green rice', 'Green weed', 'Straw', 'Others']
     """
     def __init__(self, model_path="rice_field_classifier.pth", device=None):
         if device is None:
@@ -105,8 +105,8 @@ class RiceFieldPredictor:
 
     def predict(self, image_input):
         """
-        Classifies an input image or crop into one of the 4 states:
-        ['Dry', 'Flooded', 'Planted', 'Others']
+        Classifies an input image or crop into one of the 7 states:
+        ['Dry', 'Water', 'Wet', 'Green rice', 'Green weed', 'Straw', 'Others']
         """
         if isinstance(image_input, str):
             pil_img = Image.open(image_input).convert("RGB")
@@ -137,7 +137,7 @@ class RiceFieldPredictor:
     def predict_directory(self, input_dir="Input", recursive=True, save_csv=None, **kwargs):
         """
         Recursively scans input_dir (and all nested subdirectories) for any picture file,
-        classifies each into ['Dry', 'Flooded', 'Planted', 'Others'], and aggregates results.
+        classifies each into the 7 states, and aggregates results.
         Optional CSV export available via save_csv.
         """
         if not os.path.exists(input_dir):
@@ -249,14 +249,16 @@ def export_overruled_to_dataset(overruled_items, dataset_dir="Dataset"):
         
     class_dir_map = {
         "Dry": "Dry",
-        "Flooded": "Flood",  # Dataset folder is named Flood
-        "Planted": "Planted",
-        "Others": "Others",
         "Water": "Water",
         "Wet": "Wet",
         "Green rice": "Green rice",
         "Green weed": "Green weed",
         "Straw": "Straw",
+        "Others": "Others",
+        # Legacy fallbacks
+        "Flooded": "Water",
+        "Flood": "Water",
+        "Planted": "Green rice",
     }
     
     copied = []
@@ -292,7 +294,7 @@ def predict_input_directory(input_dir="Input", model_path="rice_field_classifier
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Predict Rice Field State (Dry, Flooded, Planted, Others).")
+    parser = argparse.ArgumentParser(description="Predict Rice Field State (Dry, Water, Wet, Green rice, Green weed, Straw, Others).")
     parser.add_argument("--image", type=str, default=None, help="Path to single input image")
     parser.add_argument("--dir", "--input_dir", dest="input_dir", type=str, default=None, help="Directory to scan recursively (default: Input/)")
     parser.add_argument("--model", type=str, default="rice_field_classifier.pth", help="Model checkpoint path")
