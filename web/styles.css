@@ -344,6 +344,11 @@ body {
   border-color: var(--border-focus);
 }
 
+.filter-select option {
+  color: #111;
+  background: #808080 ;
+}
+
 /* Table */
 .table-wrapper {
   overflow-x: auto;
