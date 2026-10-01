@@ -39,7 +39,7 @@ function updateDbStatusBadge(exists) {
 
   if (exists) {
     badge.className = "badge badge-active";
-    text.textContent = "● Database Active (farm_parcels.db)";
+    text.textContent = " Database Active (farm_parcels.db)";
   } else {
     badge.className = "badge badge-neutral";
     text.textContent = "○ Database Not Initialized Yet";
