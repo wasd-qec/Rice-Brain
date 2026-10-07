@@ -47,17 +47,22 @@ def generate_random_cambodia_coord():
     alt = round(random.uniform(reg["alt"][0], reg["alt"][1]), 2)
     return lat, lon, alt, region_name
 
-def embed_gps_metadata(image_path, lat=None, lon=None, alt=None, region_hint=None, save_path=None):
+def embed_gps_metadata(image_path, lat=None, lon=None, alt=None, region_hint=None, save_path=None, convert_png=False):
     """
     Embeds standard EXIF GPS tags into an image file.
     If lat/lon/alt are not provided, generates random coordinates in Cambodia.
+    If convert_png is True and image is a PNG, converts it to JPG and removes original PNG.
     """
     if lat is None or lon is None:
         lat, lon, alt, region_hint = generate_random_cambodia_coord()
     elif alt is None:
         alt = round(random.uniform(10.0, 30.0), 2)
 
-    save_path = save_path or image_path
+    is_png = image_path.lower().endswith('.png')
+    if convert_png and is_png and save_path is None:
+        save_path = os.path.splitext(image_path)[0] + '.jpg'
+    else:
+        save_path = save_path or image_path
     
     with Image.open(image_path) as img:
         # Convert RGBA/P to RGB if saving as JPEG
@@ -70,6 +75,8 @@ def embed_gps_metadata(image_path, lat=None, lon=None, alt=None, region_hint=Non
             else:
                 bg.paste(alpha_img)
             work_img = bg
+        elif fmt in ('.jpg', '.jpeg') and img.mode != 'RGB':
+            work_img = img.convert('RGB')
         else:
             work_img = img.copy()
 
@@ -92,6 +99,10 @@ def embed_gps_metadata(image_path, lat=None, lon=None, alt=None, region_hint=Non
             work_img.save(save_path, 'JPEG', quality=95, exif=exif)
         else:
             work_img.save(save_path, exif=exif)
+
+    # If converted from PNG to JPG, remove the original PNG file
+    if convert_png and is_png and save_path != image_path and os.path.exists(save_path) and os.path.exists(image_path):
+        os.remove(image_path)
 
     return {
         "file": save_path,
@@ -135,7 +146,7 @@ def read_gps_metadata(image_path):
             "google_maps": f"https://www.google.com/maps?q={round(lat, 6)},{round(lon, 6)}"
         }
 
-def embed_directory(directory_path, recursive=True):
+def embed_directory(directory_path, recursive=True, convert_png=False):
     """Scans directory and embeds GPS metadata into all JPEG/PNG images."""
     supported = ('.jpg', '.jpeg', '.png')
     results = []
@@ -144,23 +155,39 @@ def embed_directory(directory_path, recursive=True):
         for f in sorted(files):
             if f.lower().endswith(supported):
                 img_p = os.path.join(root, f)
-                info = embed_gps_metadata(img_p)
+                info = embed_gps_metadata(img_p, convert_png=convert_png)
                 results.append(info)
-                print(f"[+] {img_p} -> {info['latitude']} N, {info['longitude']} E ({info['region']}, {info['altitude']}m)")
+                converted_tag = " [Converted to JPG]" if info['file'] != img_p else ""
+                print(f"[+] {info['file']} -> {info['latitude']} N, {info['longitude']} E ({info['region']}, {info['altitude']}m){converted_tag}")
         if not recursive:
             break
 
     return results
 
 if __name__ == "__main__":
-    target = sys.argv[1] if len(sys.argv) > 1 else "Dataset"
-    print(f"[*] Embedding random Cambodia GPS coordinates into '{target}'...")
+    args = sys.argv[1:]
+    convert_png = False
+    png_flags = {"png", "--png", "-png", "--convert-png", "--to-jpg"}
+
+    # Detect if 'png' or '--convert-png' is passed anywhere in args
+    filtered_args = []
+    for arg in args:
+        if arg.lower() in png_flags:
+            convert_png = True
+        else:
+            filtered_args.append(arg)
+
+    target = filtered_args[0] if filtered_args else "Dataset"
+    mode_msg = " (converting PNGs to JPG)" if convert_png else ""
+
+    print(f"[*] Embedding random Cambodia GPS coordinates into '{target}'{mode_msg}...")
     if os.path.isdir(target):
-        res = embed_directory(target)
+        res = embed_directory(target, convert_png=convert_png)
         print(f"\n[OK] Successfully embedded GPS coordinates into {len(res)} image(s)!")
     elif os.path.isfile(target):
-        info = embed_gps_metadata(target)
-        print(f"[OK] Successfully embedded GPS into {target}:")
+        info = embed_gps_metadata(target, convert_png=convert_png)
+        converted_tag = " [Converted to JPG]" if info['file'] != target else ""
+        print(f"[OK] Successfully embedded GPS into {info['file']}{converted_tag}:")
         print(f"     Coords: {info['latitude']}, {info['longitude']} ({info['region']})")
         print(f"     Maps:   {info['google_maps']}")
     else:
