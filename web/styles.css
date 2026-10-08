@@ -664,22 +664,53 @@ body {
   margin-bottom: 8px;
 }
 
-.decision-buttons {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.btn-choice {
-  padding: 10px;
+.decision-select {
+  width: 100%;
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-main);
   font-size: 13px;
   font-weight: 600;
-  border: 1px solid transparent;
+  border: 1px solid var(--border-color);
   cursor: pointer;
   transition: var(--transition);
 }
 
+.decision-select:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.decision-select option {
+  color: #111;
+  background: #fff;
+}
+
+.decision-submit {
+  display: flex;
+  margin: 10px 0 0 auto;
+  min-width: 100px;
+  background: var(--decision-submit-bg, var(--color-primary));
+  color: var(--decision-submit-text, #ffffff);
+}
+
+.decision-submit:hover:not(:disabled) {
+  background: var(--decision-submit-hover-bg, var(--color-primary-hover));
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-primary:disabled:hover {
+  background: var(--color-primary);
+  transform: none;
+}
+
+/* 
 .btn-dry { background: rgba(249, 115, 22, 0.15); color: #fb923c; border-color: rgba(249, 115, 22, 0.3); }
 .btn-dry:hover { background: #f97316; color: #fff; }
 
@@ -699,4 +730,4 @@ body {
 .btn-straw:hover { background: #f57f17; color: #fff; }
 
 .btn-other { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border-color: rgba(148, 163, 184, 0.3); }
-.btn-other:hover { background: #475569; color: #fff; }
+.btn-other:hover { background: #475569; color: #fff; } */

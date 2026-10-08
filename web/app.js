@@ -244,6 +244,8 @@ function openReviewModal(coord) {
   const p = allParcels.find(item => item.coordinate === coord);
   if (!p) return;
 
+  document.getElementById("operator-decision").value = "";
+  updateDecisionButton();
   document.getElementById("modal-coord").textContent = coord;
   document.getElementById("modal-date").textContent = p.date || "--";
   document.getElementById("modal-status").textContent = `${getStatusIcon(p.status)} ${p.status}`;
@@ -260,8 +262,19 @@ function closeModal() {
   activeReviewCoord = null;
 }
 
+function updateDecisionButton() {
+  const decision = document.getElementById("operator-decision").value;
+  document.getElementById("btn-submit-decision").disabled = !decision;
+}
+
+function submitSelectedDecision() {
+  const decision = document.getElementById("operator-decision").value;
+  if (!decision) return;
+  submitDecision(decision);
+}
+
 async function submitDecision(decision) {
-  if (!activeReviewCoord) return;
+  if (!activeReviewCoord || !decision) return;
 
   const coord = activeReviewCoord;
   try {
