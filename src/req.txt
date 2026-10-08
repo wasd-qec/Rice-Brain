@@ -1,0 +1,15 @@
+imageNet/mobilenet , transfer learning , confidence matrix 
+get rid of other option , 
+overfitting , 
+
+station id as foreign key , next : farmland code/id link to the image, 
+
+image fusion (one from above , one in the middle) linked to farmland id , or + station id ; //accquire info from drone team
+
+cycle number : 3 : each cycle  (start date and end date) based on location 
+##server : 
+cycle id(index)
+//extra : cycle number(1,2,3)
+station id 
+farmland id 
+
