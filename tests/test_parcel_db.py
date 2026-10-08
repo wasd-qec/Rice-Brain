@@ -204,6 +204,71 @@ class TestParcelDatabase(unittest.TestCase):
         self.assertTrue(os.path.isfile(full_path), "Migrated picture file must exist on disk")
         conn.close()
 
+    def test_05_preserves_filename_and_exif(self):
+        """Verifies that saving a parcel picture keeps original filename and retains GPS EXIF."""
+        init_db_if_needed()
+        from embed_coordinates import embed_gps_metadata
+        from src.inference import extract_image_gps
+
+        test_src_path = os.path.join(TEST_PICTURES_DIR, "source_dry_sample.jpg")
+        os.makedirs(TEST_PICTURES_DIR, exist_ok=True)
+
+        # Create image with embedded EXIF GPS
+        img = Image.new("RGB", (64, 64), color=(34, 139, 34))
+        img.save(test_src_path, format="JPEG")
+        embed_gps_metadata(test_src_path, lat=11.556400, lon=104.928200)
+
+        # Read GPS before inference
+        gps_before = extract_image_gps(test_src_path)
+        self.assertIsNotNone(gps_before, "Source image must have valid GPS EXIF")
+
+        # Save through save_parcel_picture with original filename
+        saved_rel = save_parcel_picture(test_src_path, coordinate="11.556400, 104.928200", original_filename="source_dry_sample.jpg")
+        self.assertTrue(saved_rel.endswith("source_dry_sample.jpg"), f"Saved filename should be source_dry_sample.jpg, got: {saved_rel}")
+
+        saved_full = resolve_picture_path(saved_rel)
+        self.assertTrue(os.path.isfile(saved_full), "Saved file must exist on disk")
+
+        # Read GPS after saving
+        gps_after = extract_image_gps(saved_full)
+        self.assertIsNotNone(gps_after, "GPS EXIF must NOT be lost after saving")
+        self.assertAlmostEqual(gps_after["latitude"], gps_before["latitude"], places=4)
+        self.assertAlmostEqual(gps_after["longitude"], gps_before["longitude"], places=4)
+
+    def test_06_deletion_logic(self):
+        """Verifies deleting parcel removes both DB row and image file from disk."""
+        init_db_if_needed()
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        coord1 = "11.100000, 105.100000"
+        coord2 = "12.200000, 106.200000"
+        pic1_path = save_parcel_picture(create_dummy_image_bytes(), coord1, original_filename="field_1.jpg")
+        pic2_path = save_parcel_picture(create_dummy_image_bytes(), coord2, original_filename="field_2.jpg")
+
+        cur.execute("INSERT INTO parcels (coordinate, picture_path, date, status, flag, confidence) VALUES (?, ?, ?, ?, ?, ?)",
+                    (coord1, pic1_path, "2026-09-10", "Green rice", 1, 0.90))
+        cur.execute("INSERT INTO parcels (coordinate, picture_path, date, status, flag, confidence) VALUES (?, ?, ?, ?, ?, ?)",
+                    (coord2, pic2_path, "2026-09-10", "Dry", 0, 0.95))
+        conn.commit()
+
+        full_pic1 = resolve_picture_path(pic1_path)
+        self.assertTrue(os.path.isfile(full_pic1))
+
+        # Delete parcel 1
+        remove_parcel_picture(pic1_path)
+        cur.execute("DELETE FROM parcels WHERE coordinate = ?", (coord1,))
+        conn.commit()
+
+        self.assertFalse(os.path.exists(full_pic1), "Pic 1 file must be removed upon deletion")
+        cur.execute("SELECT * FROM parcels WHERE coordinate = ?", (coord1,))
+        self.assertIsNone(cur.fetchone(), "Parcel 1 row must be deleted")
+
+        # Parcel 2 should still exist
+        cur.execute("SELECT * FROM parcels WHERE coordinate = ?", (coord2,))
+        self.assertIsNotNone(cur.fetchone(), "Parcel 2 row must remain")
+        conn.close()
+
 
 if __name__ == "__main__":
     unittest.main()

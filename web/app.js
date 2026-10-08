@@ -151,12 +151,23 @@ function renderTable() {
          </button>`
       : `<span style="color: var(--text-dim); font-size: 11px;">Picture Discarded</span>`;
 
+    const deleteBtn = `<button class="btn btn-danger btn-sm" onclick="deleteParcel('${p.coordinate}')" title="Delete parcel record">
+      🗑️ Delete
+    </button>`;
+
+    const filenameHtml = p.filename
+      ? `<span class="file-badge mono" title="Saved image file">📁 ${p.filename}</span>`
+      : "";
+
     return `
       <tr class="${rowClass}">
         <td>
-          <a href="${mapsLink}" target="_blank" rel="noopener" class="coord-link mono">
-            📍 ${p.coordinate}
-          </a>
+          <div class="coord-cell">
+            <a href="${mapsLink}" target="_blank" rel="noopener" class="coord-link mono">
+              📍 ${p.coordinate}
+            </a>
+            ${filenameHtml}
+          </div>
         </td>
         <td>${p.date || "--"}</td>
         <td>
@@ -170,7 +181,12 @@ function renderTable() {
           </span>
         </td>
         <td>${flagBadge}</td>
-        <td>${reviewBtn}</td>
+        <td>
+          <div class="action-btn-group">
+            ${reviewBtn}
+            ${deleteBtn}
+          </div>
+        </td>
       </tr>
     `;
   }).join("");
@@ -291,3 +307,65 @@ function bindKeyboardShortcuts() {
     }
   });
 }
+
+// -----------------------------------------------------------------------------
+// PARCEL DELETION
+// -----------------------------------------------------------------------------
+async function deleteParcel(coord) {
+  if (!confirm(`Are you sure you want to permanently delete parcel '${coord}'?`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ coordinate: coord })
+    });
+    const data = await res.json();
+    if (data.success) {
+      if (activeReviewCoord === coord) {
+        closeModal();
+      }
+      await loadAllData();
+    } else {
+      alert(`Failed to delete parcel: ${data.error || data.message}`);
+    }
+  } catch (err) {
+    alert(`Delete request failed: ${err}`);
+  }
+}
+
+async function deleteActiveModalParcel() {
+  if (!activeReviewCoord) return;
+  await deleteParcel(activeReviewCoord);
+}
+
+async function clearAllParcels() {
+  if (!allParcels.length) {
+    alert("Database is already empty.");
+    return;
+  }
+
+  const ans = confirm(`⚠️ DANGER: Are you sure you want to delete ALL ${allParcels.length} records and pictures from the database?\n\nThis cannot be undone.`);
+  if (!ans) return;
+
+  try {
+    const res = await fetch("/api/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ all: true })
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeModal();
+      await loadAllData();
+      alert("✅ All records and stored images successfully deleted.");
+    } else {
+      alert(`Clear failed: ${data.error || data.message}`);
+    }
+  } catch (err) {
+    alert(`Clear all request failed: ${err}`);
+  }
+}
+

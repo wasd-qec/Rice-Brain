@@ -147,6 +147,9 @@
           <button class="btn btn-secondary" onclick="loadAllData()">
             <span>🔄 Refresh</span>
           </button>
+          <button class="btn btn-danger-outline" onclick="clearAllParcels()" title="Clear all database records">
+            <span>🗑️ Delete All</span>
+          </button>
         </div>
       </div>
 
@@ -246,6 +249,12 @@
                 [7] 🌳 Others
               </button>
             </div>
+          </div>
+          
+          <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: flex-end;">
+            <button class="btn btn-danger btn-sm" onclick="deleteActiveModalParcel()" title="Permanently delete this parcel">
+              <span>🗑️ Delete Parcel</span>
+            </button>
           </div>
         </div>
       </div>

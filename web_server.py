@@ -18,6 +18,7 @@ import os
 import sys
 import re
 import json
+import shutil
 import sqlite3
 import urllib.parse
 from datetime import datetime
@@ -77,22 +78,36 @@ def _save_clean_jpeg(img, target_path):
     work_img.save(target_path, format='JPEG', quality=92)
 
 
-def save_parcel_picture(img_source, coordinate):
+def save_parcel_picture(img_source, coordinate=None, original_filename=None):
     """
-    Saves clean JPEG into PICTURES_DIR with filename based on coordinate.
+    Saves image into PICTURES_DIR preserving the original filename and all EXIF metadata.
     img_source can be a filesystem path (str) or raw image bytes.
-    Returns relative path string (e.g. 'parcel_pictures/11.877700_106.177700.jpg').
+    Returns relative path string (e.g. 'parcel_pictures/dry_01.jpg').
     """
     os.makedirs(PICTURES_DIR, exist_ok=True)
-    filename = coordinate_to_filename(coordinate)
+
+    # 1. Determine target filename: keep original filename if available
+    if original_filename:
+        filename = os.path.basename(original_filename)
+    elif isinstance(img_source, str):
+        filename = os.path.basename(img_source)
+    elif coordinate:
+        filename = coordinate_to_filename(coordinate)
+    else:
+        filename = "parcel.jpg"
+
+    filename = filename.strip()
     full_path = os.path.join(PICTURES_DIR, filename)
 
+    # 2. Save / Copy file: keep the image file same as before inference (preserves original bytes & EXIF)
     if isinstance(img_source, (bytes, bytearray)):
-        with Image.open(BytesIO(img_source)) as img:
-            _save_clean_jpeg(img, full_path)
+        with open(full_path, "wb") as f:
+            f.write(img_source)
     elif isinstance(img_source, str) and os.path.exists(img_source):
-        with Image.open(img_source) as img:
-            _save_clean_jpeg(img, full_path)
+        src_path = os.path.abspath(img_source)
+        dst_path = os.path.abspath(full_path)
+        if src_path != dst_path:
+            shutil.copy2(src_path, dst_path)
     else:
         return None
 
@@ -204,7 +219,7 @@ def get_image_date(img_path):
 class ParcelRequestHandler(BaseHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         super().end_headers()
 
@@ -235,6 +250,17 @@ class ParcelRequestHandler(BaseHTTPRequestHandler):
             self.handle_api_classify()
         elif path == "/api/review":
             self.handle_api_review()
+        elif path == "/api/delete":
+            self.handle_api_delete()
+        else:
+            self.send_error(404, "Endpoint not found")
+
+    def do_DELETE(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+
+        if path in ("/api/parcel", "/api/parcels", "/api/delete"):
+            self.handle_api_delete()
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -292,6 +318,7 @@ class ParcelRequestHandler(BaseHTTPRequestHandler):
             pic_p = r["picture_path"]
             abs_p = resolve_picture_path(pic_p) if pic_p else None
             has_pic = bool(pic_p and abs_p and os.path.exists(abs_p))
+            orig_filename = os.path.basename(pic_p) if pic_p else None
             parcels.append({
                 "coordinate": r["coordinate"],
                 "date": r["date"],
@@ -299,7 +326,8 @@ class ParcelRequestHandler(BaseHTTPRequestHandler):
                 "flag": bool(r["flag"]),
                 "confidence": round(r["confidence"], 4) if r["confidence"] is not None else None,
                 "has_picture": has_pic,
-                "picture_path": pic_p
+                "picture_path": pic_p,
+                "filename": orig_filename
             })
         conn.close()
 
@@ -329,7 +357,13 @@ class ParcelRequestHandler(BaseHTTPRequestHandler):
             with open(full_path, "rb") as f:
                 content = f.read()
             self.send_response(200)
-            self.send_header("Content-Type", "image/jpeg")
+            ext = os.path.splitext(full_path)[1].lower()
+            content_type = "image/jpeg"
+            if ext == ".png":
+                content_type = "image/png"
+            elif ext == ".webp":
+                content_type = "image/webp"
+            self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(content)))
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
@@ -399,8 +433,10 @@ class ParcelRequestHandler(BaseHTTPRequestHandler):
 
                 # 5. Picture retention rule: save to directory if flagged, else remove/lose it
                 if is_flagged:
-                    pic_path = save_parcel_picture(img_p, coord_str)
+                    pic_path = save_parcel_picture(img_p, coord_str, original_filename=os.path.basename(img_p))
                     flagged_count += 1
+                    if existing_pic_path and existing_pic_path != pic_path:
+                        remove_parcel_picture(existing_pic_path)
                 else:
                     pic_path = None
                     if existing_pic_path:
@@ -492,6 +528,71 @@ class ParcelRequestHandler(BaseHTTPRequestHandler):
             "coordinate": coordinate,
             "new_status": decision,
             "message": msg
+        })
+
+    def handle_api_delete(self):
+        """Deletes a parcel by coordinate or all parcels, and removes picture if present."""
+        if not os.path.exists(DB_FILE):
+            self.send_json(400, {"error": "Database not initialized yet."})
+            return
+
+        content_len = int(self.headers.get("Content-Length", 0))
+        body = {}
+        if content_len > 0:
+            try:
+                post_data = self.rfile.read(content_len)
+                body = json.loads(post_data.decode("utf-8"))
+            except Exception:
+                pass
+
+        if not body.get("coordinate"):
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            if "coordinate" in query:
+                body["coordinate"] = query["coordinate"][0]
+            if "all" in query and query["all"][0].lower() in ("true", "1", "yes"):
+                body["all"] = True
+
+        coordinate = body.get("coordinate")
+        delete_all = body.get("all", False)
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        if delete_all:
+            cur.execute("SELECT picture_path FROM parcels WHERE picture_path IS NOT NULL")
+            for row in cur.fetchall():
+                if row["picture_path"]:
+                    remove_parcel_picture(row["picture_path"])
+            cur.execute("DELETE FROM parcels")
+            conn.commit()
+            conn.close()
+            self.send_json(200, {"success": True, "message": "All parcel records and associated pictures deleted."})
+            return
+
+        if not coordinate:
+            conn.close()
+            self.send_json(400, {"error": "Valid 'coordinate' required to delete parcel."})
+            return
+
+        cur.execute("SELECT picture_path FROM parcels WHERE coordinate = ?", (coordinate,))
+        row = cur.fetchone()
+        if not row:
+            conn.close()
+            self.send_json(404, {"error": f"Coordinate '{coordinate}' not found."})
+            return
+
+        pic_path = row["picture_path"]
+        if pic_path:
+            remove_parcel_picture(pic_path)
+
+        cur.execute("DELETE FROM parcels WHERE coordinate = ?", (coordinate,))
+        conn.commit()
+        conn.close()
+
+        self.send_json(200, {
+            "success": True,
+            "coordinate": coordinate,
+            "message": f"Successfully deleted parcel '{coordinate}'."
         })
 
     # --------------------------------------------------------------------------
