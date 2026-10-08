@@ -52,61 +52,8 @@
         <div class="metric-sub">Planted or Low Conf (&lt;80%)</div>
       </div>
 
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">🏜️ Dry</span>
-        </div>
-        <div class="metric-value" id="val-dry">0</div>
-        <div class="metric-sub">Dry / Bare soil</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">💧 Water</span>
-        </div>
-        <div class="metric-value" id="val-water">0</div>
-        <div class="metric-sub">Flooded / Standing water</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">🌧️ Wet</span>
-        </div>
-        <div class="metric-value" id="val-wet">0</div>
-        <div class="metric-sub">Wet muddy soil</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">🌱 Green rice</span>
-        </div>
-        <div class="metric-value" id="val-green-rice">0</div>
-        <div class="metric-sub">Rice crop growing</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">🌿 Green weed</span>
-        </div>
-        <div class="metric-value" id="val-green-weed">0</div>
-        <div class="metric-sub">Weed vegetation</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">🍂 Straw</span>
-        </div>
-        <div class="metric-value" id="val-straw">0</div>
-        <div class="metric-sub">Dry stubble / mulch</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">🌳 Others</span>
-        </div>
-        <div class="metric-value" id="val-others">0</div>
-        <div class="metric-sub">Canals, roads, trees</div>
-      </div>
+      <!-- Dynamically populated from categories.json -->
+      <div id="dynamic-metrics-container" style="display: contents;"></div>
     </section>
 
     <!-- Warning Banner for Flagged Parcels -->
@@ -115,7 +62,7 @@
       <div class="banner-content">
         <h3 class="banner-title">Operator Review Required</h3>
         <p class="banner-desc" id="warning-banner-text">
-          There are parcels flagged as <strong>Planted</strong> or with <strong>low AI confidence (&lt;80%)</strong>. 
+          ⚠️ <strong id="warning-flagged-count">0</strong> parcel(s) require operator review (Planted or Low AI Confidence &lt;80%). 
           Their picture has been saved to disk (<code>parcel_pictures/</code>). Click <strong>Review</strong> to verify each parcel.
         </p>
       </div>
@@ -134,13 +81,7 @@
             <select id="filter-status" class="filter-select" onchange="renderTable()">
               <option value="all">All Statuses</option>
               <option value="flagged">⚠️ Flagged Only</option>
-              <option value="Dry">🏜️ Dry</option>
-              <option value="Water">💧 Water</option>
-              <option value="Wet">🌧️ Wet</option>
-              <option value="Green rice">🌱 Green rice</option>
-              <option value="Green weed">🌿 Green weed</option>
-              <option value="Straw">🍂 Straw</option>
-              <option value="Others">🌳 Others</option>
+              <!-- Dynamic categories populated via template -->
             </select>
           </div>
           <button class="btn btn-secondary" onclick="loadAllData()">
@@ -165,15 +106,7 @@
             </tr>
           </thead>
           <tbody id="parcels-tbody">
-            <tr class="empty-row">
-              <td colspan="6">
-                <div class="empty-state">
-                  <span class="empty-icon">🗄️</span>
-                  <h3>Database not created yet</h3>
-                  <p>Click <strong>"Classify Input Directory"</strong> above to scan images, create <code>farm_parcels.db</code>, and populate records.</p>
-                </div>
-              </td>
-            </tr>
+            <!-- Dynamically populated via parcel-row-template / empty-state-template -->
           </tbody>
         </table>
       </div>
@@ -194,7 +127,6 @@
       <div class="modal-body">
         <div class="modal-preview-container">
           <img id="modal-img" src="" alt="Parcel Preview" class="modal-image">
-          <!-- <div id="modal-img-loading" class="img-loading-spinner hidden">Loading Picture from Storage...</div> -->
         </div>
 
         <div class="modal-details">
@@ -203,15 +135,15 @@
             <span class="detail-val mono" id="modal-coord">--</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label"> Date:</span>
+            <span class="detail-label">Date:</span>
             <span class="detail-val" id="modal-date">--</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label"> Current AI Status:</span>
+            <span class="detail-label">Current AI Status:</span>
             <span class="detail-val" id="modal-status">--</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label"> Confidence:</span>
+            <span class="detail-label">Confidence:</span>
             <span class="detail-val" id="modal-conf">--</span>
           </div>
           
@@ -224,16 +156,10 @@
           </div>
 
           <div class="decision-group">
-            <label for="operator-decision" class="decision-title">Select Operator Decision [1-7]:</label>
+            <label for="operator-decision" class="decision-title" id="decision-title-label">Select Operator Decision:</label>
             <select id="operator-decision" class="decision-select" onchange="updateDecisionButton()">
               <option value="" selected disabled>Choose a decision...</option>
-              <option value="Dry">[1] 🏜️ Dry</option>
-              <option value="Water">[2] 💧 Water</option>
-              <option value="Wet">[3] 🌧️ Wet</option>
-              <option value="Green rice">[4] 🌱 Green rice</option>
-              <option value="Green weed">[5] 🌿 Green weed</option>
-              <option value="Straw">[6] 🍂 Straw</option>
-              <option value="Others">[7] 🌳 Others</option>
+              <!-- Dynamic categories populated via template -->
             </select>
             <button id="btn-submit-decision" type="button" class="btn btn-primary decision-submit"
               onclick="submitSelectedDecision()" disabled>
@@ -250,6 +176,68 @@
       </div>
     </div>
   </div>
+
+  <!-- HTML Templates for Dynamic Cloning -->
+  <template id="metric-card-template">
+    <div class="metric-card dynamic-cat-card">
+      <div class="metric-header">
+        <span class="metric-title"></span>
+      </div>
+      <div class="metric-value">0</div>
+      <div class="metric-sub"></div>
+    </div>
+  </template>
+
+  <template id="select-option-template">
+    <option value=""></option>
+  </template>
+
+  <template id="parcel-row-template">
+    <tr class="parcel-row">
+      <td>
+        <div class="coord-cell">
+          <a href="#" target="_blank" rel="noopener" class="coord-link mono"></a>
+          <span class="file-badge mono" title="Saved image file"></span>
+        </div>
+      </td>
+      <td class="col-date"></td>
+      <td class="col-status">
+        <span class="status-pill">
+          <span class="status-icon"></span>
+          <span class="status-name"></span>
+        </span>
+      </td>
+      <td class="col-conf">
+        <span class="conf-badge"></span>
+      </td>
+      <td class="col-flag">
+        <span class="flag-badge"></span>
+      </td>
+      <td>
+        <div class="action-btn-group">
+          <button type="button" class="btn btn-secondary btn-sm btn-inspect">
+            🔍 Inspect &amp; Review
+          </button>
+          <span class="picture-discarded-text" style="display: none; color: var(--text-dim); font-size: 11px;">Picture Discarded</span>
+          <button type="button" class="btn btn-danger btn-sm btn-delete" title="Delete parcel record">
+            🗑️ Delete
+          </button>
+        </div>
+      </td>
+    </tr>
+  </template>
+
+  <template id="empty-state-template">
+    <tr class="empty-row">
+      <td colspan="6">
+        <div class="empty-state">
+          <span class="empty-icon"></span>
+          <h3 class="empty-title"></h3>
+          <p class="empty-desc"></p>
+        </div>
+      </td>
+    </tr>
+  </template>
 
   <script src="app.js"></script>
 </body>

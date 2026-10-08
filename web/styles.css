@@ -286,6 +286,18 @@ body {
   color: var(--color-warning);
 }
 
+.dynamic-cat-card {
+  border-left: 3px solid var(--cat-color, var(--border-color));
+}
+
+.dynamic-cat-card:hover {
+  border-color: var(--cat-color, rgba(255, 255, 255, 0.18));
+}
+
+.dynamic-cat-card .metric-value {
+  color: var(--cat-color, #ffffff);
+}
+
 /* Warning Banner */
 .warning-banner {
   display: flex;
@@ -446,6 +458,19 @@ body {
   padding: 3px 10px;
   border-radius: 12px;
   font-size: 12px;
+  font-weight: 600;
+  color: var(--cat-color, var(--text-main));
+  background: var(--cat-bg, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--cat-border, transparent);
+  transition: var(--transition);
+}
+
+.conf-badge {
+  font-variant-numeric: tabular-nums;
+}
+
+.conf-low {
+  color: var(--color-danger);
   font-weight: 600;
 }
 
@@ -693,6 +718,8 @@ body {
   min-width: 100px;
   background: var(--decision-submit-bg, var(--color-primary));
   color: var(--decision-submit-text, #ffffff);
+  border: 1px solid var(--decision-submit-border, transparent);
+  transition: var(--transition);
 }
 
 .decision-submit:hover:not(:disabled) {
