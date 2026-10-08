@@ -716,14 +716,6 @@ body {
   display: flex;
   margin: 10px 0 0 auto;
   min-width: 100px;
-  background: var(--decision-submit-bg, var(--color-primary));
-  color: var(--decision-submit-text, #ffffff);
-  border: 1px solid var(--decision-submit-border, transparent);
-  transition: var(--transition);
-}
-
-.decision-submit:hover:not(:disabled) {
-  background: var(--decision-submit-hover-bg, var(--color-primary-hover));
 }
 
 .btn-primary:disabled {
