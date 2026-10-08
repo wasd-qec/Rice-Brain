@@ -4,11 +4,21 @@ src/train.py - Training pipeline for 7-Class Rice Field Neural Network on GPU (D
 
 import os
 import sys
+
+# Cap CPU thread contention to half of logical cores (12 on a 24-core system)
+# This keeps the system responsive, prevents thermal throttling, and avoids 100% CPU lockup
+NUM_CPU_THREADS = max(1, (os.cpu_count() or 8) // 2)
+os.environ["OMP_NUM_THREADS"] = str(NUM_CPU_THREADS)
+os.environ["MKL_NUM_THREADS"] = str(NUM_CPU_THREADS)
+
 import time
 import argparse
 import numpy as np
 import torch
 import torch.nn as nn
+
+# Restrict PyTorch CPU operations
+torch.set_num_threads(NUM_CPU_THREADS)
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -21,12 +31,16 @@ def train_classifier(
     epochs=25,
     batch_size=16,
     learning_rate=1e-3,
-    save_path="rice_field_classifier.pth"
+    save_path="rice_field_classifier.pth",
+    cpu_threads=NUM_CPU_THREADS
 ):
+    if cpu_threads:
+        torch.set_num_threads(cpu_threads)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[*] Training on device: {device}", flush=True)
     if device.type == "cuda":
         print(f"[*] GPU Model: {torch.cuda.get_device_name(0)}", flush=True)
+    print(f"[*] Max CPU Threads set to: {torch.get_num_threads()}", flush=True)
     print(f"[*] Target Classes ({len(CLASSES)}): {CLASSES}", flush=True)
     
     # 1. Dataloaders
@@ -143,11 +157,13 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=12, help="Number of training epochs")
     parser.add_argument("--batch_size", type=int, default=16, help="Batch size")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
+    parser.add_argument("--cpu_threads", type=int, default=NUM_CPU_THREADS, help="Max CPU threads to restrict CPU load")
     args = parser.parse_args()
     
     train_classifier(
         dataset_dir=args.dataset,
         epochs=args.epochs,
         batch_size=args.batch_size,
-        learning_rate=args.lr
+        learning_rate=args.lr,
+        cpu_threads=args.cpu_threads
     )

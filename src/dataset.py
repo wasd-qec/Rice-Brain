@@ -132,8 +132,9 @@ def create_dataloaders(dataset_dir="Dataset", batch_size=16, num_train_samples=8
     train_ds = RiceFieldDataset(dataset_dir=dataset_dir, image_size=224, num_samples=num_train_samples, is_train=True)
     val_ds = RiceFieldDataset(dataset_dir=dataset_dir, image_size=224, num_samples=num_val_samples, is_train=False)
     
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
+    pin_mem = torch.cuda.is_available()
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=pin_mem)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=pin_mem)
     
     return train_loader, val_loader
 

@@ -1,6 +1,7 @@
 Input/*
 Unsorted/*
-!.gitkeep
+parcel_pictures/*
+!**/.gitkeep
 
 farm_parcels.db
 *.db
