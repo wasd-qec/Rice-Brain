@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🌾 Rice Field AI — Parcel Database & Curation Dashboard</title>
+  <title> Rice Field AI </title>
   <meta name="description" content="Rice Field Parcel Database and AI Classification Review Dashboard with lazy SQLite persistence and operator curation.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,7 +15,6 @@
     <!-- Top Header -->
     <header class="app-header">
       <div class="header-branding">
-        <div class="logo-icon">🌾</div>
         <div>
           <h1 class="header-title">Rice Field AI (Parcel Database)</h1>
           <p class="header-subtitle">Coordinate-Indexed Farm Parcel Tracking & Curation System</p>
@@ -79,7 +78,7 @@
 
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">🌾 Green rice</span>
+          <span class="metric-title">🌱 Green rice</span>
         </div>
         <div class="metric-value" id="val-green-rice">0</div>
         <div class="metric-sub">Rice crop growing</div>
@@ -138,7 +137,7 @@
               <option value="Dry">🏜️ Dry</option>
               <option value="Water">💧 Water</option>
               <option value="Wet">🌧️ Wet</option>
-              <option value="Green rice">🌾 Green rice</option>
+              <option value="Green rice">🌱 Green rice</option>
               <option value="Green weed">🌿 Green weed</option>
               <option value="Straw">🍂 Straw</option>
               <option value="Others">🌳 Others</option>
@@ -192,24 +191,24 @@
       <div class="modal-body">
         <div class="modal-preview-container">
           <img id="modal-img" src="" alt="Parcel Preview" class="modal-image">
-          <div id="modal-img-loading" class="img-loading-spinner hidden">Loading Picture from Storage...</div>
+          <!-- <div id="modal-img-loading" class="img-loading-spinner hidden">Loading Picture from Storage...</div> -->
         </div>
 
         <div class="modal-details">
           <div class="detail-row">
-            <span class="detail-label">📍 Coordinate:</span>
+            <span class="detail-label">Coordinate:</span>
             <span class="detail-val mono" id="modal-coord">--</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">📅 Date:</span>
+            <span class="detail-label"> Date:</span>
             <span class="detail-val" id="modal-date">--</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">🤖 Current AI Status:</span>
+            <span class="detail-label"> Current AI Status:</span>
             <span class="detail-val" id="modal-status">--</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">🎯 Confidence:</span>
+            <span class="detail-label"> Confidence:</span>
             <span class="detail-val" id="modal-conf">--</span>
           </div>
           
@@ -222,30 +221,21 @@
           </div>
 
           <div class="decision-group">
-            <label class="decision-title">Select Operator Decision [1-7]:</label>
-            <div class="decision-buttons">
-              <button class="btn btn-choice btn-dry" onclick="submitDecision('Dry')">
-                [1] 🏜️ Dry
-              </button>
-              <button class="btn btn-choice btn-water" onclick="submitDecision('Water')">
-                [2] 💧 Water
-              </button>
-              <button class="btn btn-choice btn-wet" onclick="submitDecision('Wet')">
-                [3] 🌧️ Wet
-              </button>
-              <button class="btn btn-choice btn-green-rice" onclick="submitDecision('Green rice')">
-                [4] 🌾 Green rice (Keep Picture)
-              </button>
-              <button class="btn btn-choice btn-green-weed" onclick="submitDecision('Green weed')">
-                [5] 🌿 Green weed
-              </button>
-              <button class="btn btn-choice btn-straw" onclick="submitDecision('Straw')">
-                [6] 🍂 Straw
-              </button>
-              <button class="btn btn-choice btn-other" onclick="submitDecision('Others')">
-                [7] 🌳 Others
-              </button>
-            </div>
+            <label for="operator-decision" class="decision-title">Select Operator Decision [1-7]:</label>
+            <select id="operator-decision" class="decision-select" onchange="updateDecisionButton()">
+              <option value="" selected disabled>Choose a decision...</option>
+              <option value="Dry">[1] 🏜️ Dry</option>
+              <option value="Water">[2] 💧 Water</option>
+              <option value="Wet">[3] 🌧️ Wet</option>
+              <option value="Green rice">[4] 🌱 Green rice</option>
+              <option value="Green weed">[5] 🌿 Green weed</option>
+              <option value="Straw">[6] 🍂 Straw</option>
+              <option value="Others">[7] 🌳 Others</option>
+            </select>
+            <button id="btn-submit-decision" type="button" class="btn btn-primary decision-submit"
+              onclick="submitSelectedDecision()" disabled>
+              Done
+            </button>
           </div>
         </div>
       </div>
