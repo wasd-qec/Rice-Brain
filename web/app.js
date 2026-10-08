@@ -438,17 +438,6 @@ function updateDecisionButton() {
 
   const decision = decisionSelect.value;
   submitBtn.disabled = !decision;
-
-  if (decision) {
-    const cat = getCategoryInfo(decision);
-    if (cat) {
-      submitBtn.style.setProperty("--decision-submit-bg", cat.hoverBg || cat.color || "");
-      submitBtn.style.setProperty("--decision-submit-border", cat.borderColor || "transparent");
-    }
-  } else {
-    submitBtn.style.removeProperty("--decision-submit-bg");
-    submitBtn.style.removeProperty("--decision-submit-border");
-  }
 }
 
 function submitSelectedDecision() {
